@@ -44,7 +44,7 @@ src/navigation/
   MainTabs.tsx               — bottom tabs: Dashboard / History / Settings
 
 src/screens/
-  DashboardScreen.tsx        — scope selector + 8 KPI tiles wired to real data; charts land in Phase 4
+  DashboardScreen.tsx        — scope selector + 8 KPI tiles + all 4 charts, all wired to real data
   HistoryScreen.tsx           — full CRUD: list (newest-first), edit, delete (via ConfirmDialog)
   SettingsScreen.tsx          — placeholder; export/backup land in Phase 5
   AddEditEntryScreen.tsx      — shared add+edit form; inline validation error text on failure
@@ -57,6 +57,17 @@ src/components/
                               (see "Confirmation dialogs" below)
   KpiTile.tsx                 — one dashboard KPI card (icon chip at accentColor+"14" alpha, label, value)
   ScopeSelector.tsx            — horizontal chip row: "All time" + one chip per distinct month (descending)
+  ChartEmptyState.tsx          — shared dashed-box empty-state message, used by all 4 chart components
+  MileageTrendChart.tsx        — gifted-charts area LineChart, forest-green gradient fill
+  LastTwoMonthsCard.tsx        — hand-rolled (not chart-lib) comparison of the 2 most recent months,
+                              bar width normalized against LAST_TWO_MONTHS_REFERENCE_KMPL (30)
+  MonthComparisonChart.tsx      — gifted-charts grouped BarChart (spend + distance per month, one shared
+                              y-axis, matching the original), plus a hand-rolled legend row
+  FuelPriceTrendChart.tsx       — gifted-charts LineChart, terracotta
+
+All 4 chart components take `monthly: MonthlyBreakdownEntry[]` (always the context's all-time
+`monthlyBreakdown`, never re-scoped by the Dashboard's month selector — confirmed by testing that
+switching scope changes the KPI tiles but not the charts).
 
 reference/legacy-prototype/  — the original FastAPI+MongoDB+React web prototype this app replaces,
                               kept for logic reference only, never executed
@@ -82,4 +93,4 @@ Destructive actions (currently just delete) use the custom `src/components/Confi
 
 ## Status
 
-Phase 3 complete: analytics engine (`computeSummary`/`computeMonthlyBreakdown`/`listDistinctMonthsDescending`) and the Dashboard's 8 KPI tiles + scope selector are wired to real SQLite data. Verified end-to-end via `expo start --web`, including the asymmetric formula (avg ₹/L over all entries vs. avg mileage/cost-per-km over only distance-having entries) producing correct numbers. See `Project_Plan.md` for what's next (Phase 4: charts).
+Phase 4 complete: all 4 dashboard charts built with `react-native-gifted-charts` (+ `react-native-svg` + `expo-linear-gradient`, the last needed at runtime for gradient fills though not an obvious direct dependency) and verified end-to-end against a 2-month, 4-entry fixture — mileage trend, last-2-months comparison, grouped spend/distance bars, and fuel price trend all rendering correct values, and confirmed to stay all-time regardless of the KPI scope selector. See `Project_Plan.md` for what's next (Phase 5: export, backup, settings).

@@ -48,7 +48,9 @@ Update: `expo-sqlite`'s web target actually works — it just needs `metro.confi
 - [x] Phase 1 — scaffold, DB, nav shell
 - [x] Phase 2 — Add/Edit + History + validation
 - [x] Phase 3 — Analytics + Dashboard KPIs
-- [ ] Phase 4 — Charts
+- [x] Phase 4 — Charts
 - [ ] Phase 5 — Export, backup, settings, polish
 
 Small deliberate deviation from the original in Phase 3: the "Scope" KPI tile shows a formatted month label (e.g. "Sep 2026") instead of the original's raw "YYYY-MM" string — a display-only polish, not a calculation change, so it doesn't affect the numeric-parity goal.
+
+Phase 4 notes: charting library is `react-native-gifted-charts` (+ `react-native-svg`, `expo-linear-gradient` — the latter is a runtime dependency of gifted-charts' area/gradient fills, not obvious from its own package.json, and had to be added after an "Uncaught: Gradient package was not found" error surfaced in testing). The mileage trend chart bridges null-mileage months by omitting that data point entirely (rather than using a `connectNulls` flag, which this library doesn't expose) — the line naturally connects the nearest valid points either side, producing the same visual bridge as the original. The grouped bar chart shares one y-axis for both spend and distance series, same as the original (flagged as a possible design flaw during research, but not one of the 3 named bugs, so left as-is rather than redesigned).

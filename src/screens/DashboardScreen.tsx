@@ -6,10 +6,14 @@ import { formatInr, formatNum } from '../utils/format';
 import { useFuelEntries } from '../context/FuelEntriesContext';
 import KpiTile from '../components/KpiTile';
 import ScopeSelector from '../components/ScopeSelector';
+import MileageTrendChart from '../components/MileageTrendChart';
+import LastTwoMonthsCard from '../components/LastTwoMonthsCard';
+import MonthComparisonChart from '../components/MonthComparisonChart';
+import FuelPriceTrendChart from '../components/FuelPriceTrendChart';
 import type { DashboardTabScreenProps } from '../navigation/types';
 
 export default function DashboardScreen({ navigation }: DashboardTabScreenProps) {
-  const { distinctMonths, getSummary } = useFuelEntries();
+  const { distinctMonths, getSummary, monthlyBreakdown } = useFuelEntries();
   const [selectedMonth, setSelectedMonth] = useState<string | null>(null);
   const summary = useMemo(() => getSummary(selectedMonth), [getSummary, selectedMonth]);
 
@@ -41,7 +45,10 @@ export default function DashboardScreen({ navigation }: DashboardTabScreenProps)
         ))}
       </View>
 
-      <Text style={styles.chartsPlaceholder}>Charts land here in Phase 4.</Text>
+      <MileageTrendChart monthly={monthlyBreakdown} />
+      <LastTwoMonthsCard monthly={monthlyBreakdown} />
+      <MonthComparisonChart monthly={monthlyBreakdown} />
+      <FuelPriceTrendChart monthly={monthlyBreakdown} />
     </ScrollView>
   );
 }
@@ -80,12 +87,5 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     flexWrap: 'wrap',
     justifyContent: 'space-between',
-  },
-  chartsPlaceholder: {
-    fontFamily: fonts.body,
-    fontSize: 13,
-    color: colors.textMuted,
-    textAlign: 'center',
-    marginTop: spacing.md,
   },
 });
