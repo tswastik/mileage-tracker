@@ -41,12 +41,12 @@ Because both create and edit validate against each entry's actual real chronolog
 
 ## Verification
 
-`expo-sqlite` has no web implementation, so DB-backed flows need an Android emulator or physical device via Expo Go. Web preview (`expo start --web`) is only useful for navigation/layout/theme/font smoke tests. Full on-device regression at the end of Phase 5, covering all three named bug fixes with a fixture spanning ≥2 months plus one backfilled historical entry.
+Update: `expo-sqlite`'s web target actually works — it just needs `metro.config.js` to treat `.wasm` as an asset and set `Cross-Origin-Opener-Policy`/`Cross-Origin-Embedder-Policy` headers (added in Phase 1 once this was discovered). With that in place, `expo start --web` is a genuinely useful full-app testing surface, not just a layout smoke test — confirmed end-to-end for Phase 2's add/edit/delete/validation flows. Native `Alert.alert`/`window.confirm` are unreliable across environments (react-native-web doesn't act on `Alert.alert`, and some automated/sandboxed browser contexts suppress native `confirm()` dialogs), so destructive confirmations use a custom in-app `ConfirmDialog` component instead — this also better matches the original prototype's own inline `AlertDialog` pattern rather than a native browser popup. An Android emulator or physical device via Expo Go is still the right place for a final regression pass (real touch/native-picker behavior), but is no longer the *only* way to test DB-backed flows.
 
 ## Status
 
 - [x] Phase 1 — scaffold, DB, nav shell
-- [ ] Phase 2 — Add/Edit + History + validation
+- [x] Phase 2 — Add/Edit + History + validation
 - [ ] Phase 3 — Analytics + Dashboard KPIs
 - [ ] Phase 4 — Charts
 - [ ] Phase 5 — Export, backup, settings, polish

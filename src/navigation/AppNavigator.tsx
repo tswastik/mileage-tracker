@@ -14,13 +14,13 @@ export default function AppNavigator() {
       <Stack.Screen
         name="AddEditEntry"
         component={AddEditEntryScreen}
-        options={{
+        options={({ route }) => ({
           presentation: 'modal',
-          title: 'Log Refuel',
+          title: route.params?.entryId ? 'Edit Refuel' : 'Log Refuel',
           headerStyle: { backgroundColor: colors.surface },
           headerTitleStyle: { fontFamily: fonts.bodySemiBold, color: colors.textPrimary },
           headerTintColor: colors.forestGreen,
-        }}
+        })}
       />
     </Stack.Navigator>
   );
