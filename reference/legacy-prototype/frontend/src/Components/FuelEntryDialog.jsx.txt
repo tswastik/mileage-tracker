@@ -1,0 +1,192 @@
+
+Action: file_editor create /app/frontend/src/components/FuelEntryDialog.jsx --file-text "import { useEffect, useState } from \"react\";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from \"@/components/ui/dialog\";
+import { Button } from \"@/components/ui/button\";
+import { Input } from \"@/components/ui/input\";
+import { Label } from \"@/components/ui/label\";
+import { Textarea } from \"@/components/ui/textarea\";
+import { todayISO } from \"@/lib/format\";
+
+const empty = {
+  date: todayISO(),
+  odometer_km: \"\",
+  liters: \"\",
+  total_price_inr: \"\",
+  station: \"\",
+  notes: \"\",
+};
+
+export default function FuelEntryDialog({ open, onOpenChange, onSave, initial }) {
+  const [form, setForm] = useState(empty);
+  const [submitting, setSubmitting] = useState(false);
+
+  useEffect(() => {
+    if (open) {
+      setForm(initial ? { ...empty, ...initial } : { ...empty, date: todayISO() });
+    }
+  }, [open, initial]);
+
+  const set = (k, v) => setForm((f) => ({ ...f, [k]: v }));
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (!form.date || !form.odometer_km || !form.liters || !form.total_price_inr) return;
+    setSubmitting(true);
+    await onSave({
+      date: form.date,
+      odometer_km: parseFloat(form.odometer_km),
+      liters: parseFloat(form.liters),
+      total_price_inr: parseFloat(form.total_price_inr),
+      station: form.station || \"\",
+      notes: form.notes || \"\",
+    });
+    setSubmitting(false);
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent
+        data-testid=\"fuel-entry-dialog\"
+        className=\"bg-white border-[#E5E3DB] rounded-sm sm:max-w-lg\"
+      >
+        <DialogHeader>
+          <DialogTitle
+            className=\"text-xl font-semibold tracking-tight text-[#2C2C2A]\"
+            style={{ fontFamily: \"'Work Sans', sans-serif\" }}
+          >
+            {initial ? \"Edit Refuel\" : \"Log Refuel\"}
+          </DialogTitle>
+          <DialogDescription className=\"text-sm text-[#6B6A65]\">
+            Record the petrol fill-up details. All amounts in ₹.
+          </DialogDescription>
+        </DialogHeader>
+
+        <form onSubmit={handleSubmit} className=\"space-y-4\">
+          <div className=\"grid grid-cols-2 gap-4\">
+            <div className=\"col-span-2 sm:col-span-1\">
+              <Label htmlFor=\"date\" className=\"text-xs uppercase tracking-wider text-[#6B6A65]\">
+                Date
+              </Label>
+              <Input
+                id=\"date\"
+                data-testid=\"input-date\"
+                type=\"date\"
+                value={form.date}
+                onChange={(e) => set(\"date\", e.target.value)}
+                required
+                className=\"mt-1 bg-white border-[#E5E3DB] rounded-sm focus-visible:ring-[#2E5339]\"
+              />
+            </div>
+            <div className=\"col-span-2 sm:col-span-1\">
+              <Label htmlFor=\"odometer\" className=\"text-xs uppercase tracking-wider text-[#6B6A65]\">
+                Odometer (km)
+              </Label>
+              <Input
+                id=\"odometer\"
+                data-testid=\"input-odometer\"
+                type=\"number\"
+                inputMode=\"decimal\"
+                step=\"0.1\"
+                placeholder=\"e.g. 24580\"
+                value={form.odometer_km}
+                onChange={(e) => set(\"odometer_km\", e.target.value)}
+                required
+                className=\"mt-1 bg-white border-[#E5E3DB] rounded-sm focus-visible:ring-[#2E5339]\"
+              />
+            </div>
+            <div>
+              <Label htmlFor=\"liters\" className=\"text-xs uppercase tracking-wider text-[#6B6A65]\">
+                Liters
+              </Label>
+              <Input
+                id=\"liters\"
+                data-testid=\"input-liters\"
+                type=\"number\"
+                inputMode=\"decimal\"
+                step=\"0.01\"
+                placeholder=\"e.g. 12.45\"
+                value={form.liters}
+                onChange={(e) => set(\"liters\", e.target.value)}
+                required
+                className=\"mt-1 bg-white border-[#E5E3DB] rounded-sm focus-visible:ring-[#2E5339]\"
+              />
+            </div>
+            <div>
+              <Label htmlFor=\"price\" className=\"text-xs uppercase tracking-wider text-[#6B6A65]\">
+                Total ₹
+              </Label>
+              <Input
+                id=\"price\"
+                data-testid=\"input-price\"
+                type=\"number\"
+                inputMode=\"decimal\"
+                step=\"0.01\"
+                placeholder=\"e.g. 1280\"
+                value={form.total_price_inr}
+                onChange={(e) => set(\"total_price_inr\", e.target.value)}
+                required
+                className=\"mt-1 bg-white border-[#E5E3DB] rounded-sm focus-visible:ring-[#2E5339]\"
+              />
+            </div>
+          </div>
+          <div>
+            <Label htmlFor=\"station\" className=\"text-xs uppercase tracking-wider text-[#6B6A65]\">
+              Station (optional)
+            </Label>
+            <Input
+              id=\"station\"
+              data-testid=\"input-station\"
+              placeholder=\"e.g. HP Petrol Pump, MG Road\"
+              value={form.station}
+              onChange={(e) => set(\"station\", e.target.value)}
+              className=\"mt-1 bg-white border-[#E5E3DB] rounded-sm focus-visible:ring-[#2E5339]\"
+            />
+          </div>
+          <div>
+            <Label htmlFor=\"notes\" className=\"text-xs uppercase tracking-wider text-[#6B6A65]\">
+              Notes (optional)
+            </Label>
+            <Textarea
+              id=\"notes\"
+              data-testid=\"input-notes\"
+              placeholder=\"Anything to remember about this fill-up...\"
+              value={form.notes}
+              onChange={(e) => set(\"notes\", e.target.value)}
+              className=\"mt-1 bg-white border-[#E5E3DB] rounded-sm focus-visible:ring-[#2E5339]\"
+              rows={2}
+            />
+          </div>
+
+          <DialogFooter className=\"gap-2\">
+            <Button
+              type=\"button\"
+              variant=\"outline\"
+              onClick={() => onOpenChange(false)}
+              data-testid=\"cancel-entry\"
+              className=\"bg-white text-[#2C2C2A] border-[#E5E3DB] hover:bg-[#F9F8F6] rounded-sm\"
+            >
+              Cancel
+            </Button>
+            <Button
+              type=\"submit\"
+              disabled={submitting}
+              data-testid=\"save-entry\"
+              className=\"bg-[#2E5339] hover:bg-[#21402A] text-white rounded-sm\"
+            >
+              {submitting ? \"Saving...\" : initial ? \"Update\" : \"Save Refuel\"}
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+"
+Observation: Create successful: /app/frontend/src/components/FuelEntryDialog.jsx

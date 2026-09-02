@@ -1,0 +1,271 @@
+
+Action: file_editor create /app/frontend/src/pages/Dashboard.jsx --file-text "import { useEffect, useMemo, useState } from \"react\";
+import { Fuel, Plus, TrendingUp, History, BarChart3 } from \"lucide-react\";
+import { toast } from \"sonner\";
+import {
+  fetchEntries,
+  fetchSummary,
+  fetchMonthly,
+  fetchMonths,
+  createEntry,
+  updateEntry,
+  deleteEntry,
+} from \"@/lib/api\";
+import { formatINR, formatNum, monthLabel } from \"@/lib/format\";
+import SummaryCards from \"@/components/SummaryCards\";
+import MileageTrendChart from \"@/components/MileageTrendChart\";
+import MonthlyComparisonChart from \"@/components/MonthlyComparisonChart\";
+import PriceTrendChart from \"@/components/PriceTrendChart\";
+import HistoryTable from \"@/components/HistoryTable\";
+import FuelEntryDialog from \"@/components/FuelEntryDialog\";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from \"@/components/ui/select\";
+import { Button } from \"@/components/ui/button\";
+
+export default function Dashboard() {
+  const [entries, setEntries] = useState([]);
+  const [monthly, setMonthly] = useState([]);
+  const [months, setMonths] = useState([]);
+  const [summary, setSummary] = useState(null);
+  const [selectedMonth, setSelectedMonth] = useState(\"ltd\"); // 'ltd' or 'YYYY-MM'
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [editingEntry, setEditingEntry] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  const refresh = async (monthScope = selectedMonth) => {
+    try {
+      const [e, m, mo] = await Promise.all([
+        fetchEntries(),
+        fetchMonthly(),
+        fetchMonths(),
+      ]);
+      setEntries(e);
+      setMonthly(m);
+      setMonths(mo);
+      const s = await fetchSummary(monthScope === \"ltd\" ? null : monthScope);
+      setSummary(s);
+    } catch (err) {
+      console.error(err);
+      toast.error(\"Failed to load data\");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    refresh();
+    // eslint-disable-next-line
+  }, []);
+
+  useEffect(() => {
+    fetchSummary(selectedMonth === \"ltd\" ? null : selectedMonth)
+      .then(setSummary)
+      .catch(() => {});
+  }, [selectedMonth]);
+
+  const handleSave = async (payload) => {
+    try {
+      if (editingEntry) {
+        await updateEntry(editingEntry.id, payload);
+        toast.success(\"Entry updated\");
+      } else {
+        await createEntry(payload);
+        toast.success(\"Fuel entry added\");
+      }
+      setDialogOpen(false);
+      setEditingEntry(null);
+      await refresh();
+    } catch (err) {
+      toast.error(err?.response?.data?.detail || \"Failed to save entry\");
+    }
+  };
+
+  const handleDelete = async (id) => {
+    try {
+      await deleteEntry(id);
+      toast.success(\"Entry deleted\");
+      await refresh();
+    } catch (err) {
+      toast.error(\"Failed to delete\");
+    }
+  };
+
+  const handleEdit = (entry) => {
+    setEditingEntry(entry);
+    setDialogOpen(true);
+  };
+
+  const lastTwoMonths = useMemo(() => monthly.slice(-2), [monthly]);
+
+  return (
+    <div className=\"min-h-screen bg-[#F9F8F6]\">
+      {/* Header */}
+      <header className=\"border-b border-[#E5E3DB] bg-white\">
+        <div className=\"max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 flex items-center justify-between\">
+          <div className=\"flex items-center gap-3\">
+            <div className=\"w-10 h-10 rounded-sm bg-[#2E5339] flex items-center justify-center\">
+              <Fuel className=\"w-5 h-5 text-white\" strokeWidth={2} />
+            </div>
+            <div>
+              <h1
+                data-testid=\"app-title\"
+                className=\"text-2xl font-semibold tracking-tight text-[#2C2C2A]\"
+                style={{ fontFamily: \"'Work Sans', sans-serif\" }}
+              >
+                Mileage Ledger
+              </h1>
+              <p className=\"text-sm text-[#6B6A65]\">Track refuels. Analyse mileage. Drive smarter.</p>
+            </div>
+          </div>
+          <Button
+            data-testid=\"add-fuel-button\"
+            onClick={() => {
+              setEditingEntry(null);
+              setDialogOpen(true);
+            }}
+            className=\"bg-[#2E5339] hover:bg-[#21402A] text-white rounded-sm px-5 py-2 font-medium\"
+          >
+            <Plus className=\"w-4 h-4 mr-2\" /> Log Refuel
+          </Button>
+        </div>
+      </header>
+
+      <main className=\"max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8\">
+        {/* Scope selector */}
+        <div className=\"flex flex-col sm:flex-row sm:items-end justify-between gap-4 fade-up\">
+          <div>
+            <div className=\"text-xs uppercase tracking-[0.2em] text-[#6B6A65] font-semibold mb-1\">
+              Overview
+            </div>
+            <h2
+              className=\"text-3xl sm:text-4xl font-semibold tracking-tight text-[#2C2C2A]\"
+              style={{ fontFamily: \"'Work Sans', sans-serif\" }}
+            >
+              {selectedMonth === \"ltd\" ? \"Life-to-Date\" : monthLabel(selectedMonth)}
+            </h2>
+          </div>
+          <div className=\"flex items-center gap-3\">
+            <span className=\"text-sm text-[#6B6A65]\">Scope</span>
+            <Select value={selectedMonth} onValueChange={setSelectedMonth}>
+              <SelectTrigger
+                data-testid=\"month-selector\"
+                className=\"w-56 bg-white border-[#E5E3DB] rounded-sm focus:ring-[#2E5339]\"
+              >
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value=\"ltd\" data-testid=\"scope-ltd\">Life-to-Date</SelectItem>
+                {months.map((m) => (
+                  <SelectItem key={m} value={m} data-testid={`scope-${m}`}>
+                    {monthLabel(m)}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+
+        {/* Summary cards */}
+        <SummaryCards summary={summary} loading={loading} />
+
+        {/* Charts grid */}
+        <div className=\"grid grid-cols-1 lg:grid-cols-4 gap-4 sm:gap-6\">
+          <div className=\"lg:col-span-3 bg-white border border-[#E5E3DB] rounded-sm p-6 fade-up\">
+            <div className=\"flex items-start justify-between mb-6\">
+              <div>
+                <div className=\"flex items-center gap-2 text-xs uppercase tracking-[0.2em] text-[#6B6A65] font-semibold mb-1\">
+                  <TrendingUp className=\"w-3.5 h-3.5\" /> Monthly Mileage Trend
+                </div>
+                <div className=\"text-lg font-medium text-[#2C2C2A]\">
+                  Average km/L across months
+                </div>
+              </div>
+            </div>
+            <MileageTrendChart data={monthly} />
+          </div>
+
+          <div className=\"bg-white border border-[#E5E3DB] rounded-sm p-6 fade-up\">
+            <div className=\"text-xs uppercase tracking-[0.2em] text-[#6B6A65] font-semibold mb-1\">
+              Last 2 Months
+            </div>
+            <div className=\"text-lg font-medium text-[#2C2C2A] mb-6\">Comparison</div>
+            {lastTwoMonths.length === 2 ? (
+              <div className=\"space-y-5\">
+                {lastTwoMonths.map((m, idx) => (
+                  <div key={m.month} data-testid={`compare-month-${idx}`}>
+                    <div className=\"text-sm text-[#6B6A65] mb-1\">{monthLabel(m.month)}</div>
+                    <div className=\"flex items-baseline justify-between\">
+                      <span className=\"text-2xl font-semibold text-[#2C2C2A]\" style={{ fontFamily: \"'Work Sans', sans-serif\" }}>
+                        {formatNum(m.avg_mileage_kmpl, \" km/L\", 2)}
+                      </span>
+                      <span className=\"text-sm text-[#6B6A65]\">{formatINR(m.total_spent)}</span>
+                    </div>
+                    <div className=\"h-1 bg-[#E5E3DB] mt-2 rounded-full overflow-hidden\">
+                      <div
+                        className=\"h-full bg-[#2E5339]\"
+                        style={{
+                          width: `${Math.min(100, ((m.avg_mileage_kmpl || 0) / 30) * 100)}%`,
+                        }}
+                      />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className=\"text-sm text-[#6B6A65]\">Need at least 2 months of data.</div>
+            )}
+          </div>
+
+          <div className=\"lg:col-span-2 bg-white border border-[#E5E3DB] rounded-sm p-6 fade-up\">
+            <div className=\"flex items-center gap-2 text-xs uppercase tracking-[0.2em] text-[#6B6A65] font-semibold mb-1\">
+              <BarChart3 className=\"w-3.5 h-3.5\" /> Month-over-Month
+            </div>
+            <div className=\"text-lg font-medium text-[#2C2C2A] mb-6\">Spend & Distance</div>
+            <MonthlyComparisonChart data={monthly} />
+          </div>
+
+          <div className=\"lg:col-span-2 bg-white border border-[#E5E3DB] rounded-sm p-6 fade-up\">
+            <div className=\"text-xs uppercase tracking-[0.2em] text-[#6B6A65] font-semibold mb-1\">
+              Fuel Price
+            </div>
+            <div className=\"text-lg font-medium text-[#2C2C2A] mb-6\">₹ per litre over time</div>
+            <PriceTrendChart data={monthly} />
+          </div>
+        </div>
+
+        {/* History */}
+        <div className=\"bg-white border border-[#E5E3DB] rounded-sm p-6 fade-up\">
+          <div className=\"flex items-center justify-between mb-6\">
+            <div>
+              <div className=\"flex items-center gap-2 text-xs uppercase tracking-[0.2em] text-[#6B6A65] font-semibold mb-1\">
+                <History className=\"w-3.5 h-3.5\" /> History Log
+              </div>
+              <div className=\"text-lg font-medium text-[#2C2C2A]\">All refuels</div>
+            </div>
+            <div className=\"text-sm text-[#6B6A65]\" data-testid=\"history-count\">
+              {entries.length} {entries.length === 1 ? \"entry\" : \"entries\"}
+            </div>
+          </div>
+          <HistoryTable entries={entries} onEdit={handleEdit} onDelete={handleDelete} />
+        </div>
+      </main>
+
+      <FuelEntryDialog
+        open={dialogOpen}
+        onOpenChange={(o) => {
+          setDialogOpen(o);
+          if (!o) setEditingEntry(null);
+        }}
+        onSave={handleSave}
+        initial={editingEntry}
+      />
+    </div>
+  );
+}
+"
+Observation: Create successful: /app/frontend/src/pages/Dashboard.jsx

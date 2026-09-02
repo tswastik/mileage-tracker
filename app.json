@@ -1,0 +1,33 @@
+{
+  "expo": {
+    "name": "Mileage Tracker",
+    "slug": "mileage-tracker",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "ios": {
+      "supportsTablet": true
+    },
+    "android": {
+      "package": "com.tswastik.mileagetracker",
+      "adaptiveIcon": {
+        "backgroundColor": "#F9F8F6",
+        "foregroundImage": "./assets/android-icon-foreground.png",
+        "backgroundImage": "./assets/android-icon-background.png",
+        "monochromeImage": "./assets/android-icon-monochrome.png"
+      },
+      "predictiveBackGestureEnabled": false
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
+    "plugins": [
+      "expo-sqlite",
+      "@react-native-community/datetimepicker",
+      "expo-sharing",
+      "expo-font",
+      "expo-splash-screen"
+    ]
+  }
+}

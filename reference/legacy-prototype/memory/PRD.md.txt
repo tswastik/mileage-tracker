@@ -1,0 +1,43 @@
+
+Action: file_editor create /app/memory/PRD.md --file-text "# Mileage Tracker — PRD
+
+## Original Problem Statement
+Prepare a mileage tracker web app that shows petrol purchases (price in rupees and petrol filled in liters), inputs odometer reading at refueling, and maintains a history log for analysis. Dashboard for visualization and summary of average mileage for specific months or full life-to-date. Tech stack originally requested: Python, MongoDB, Django — pivoted to **FastAPI + React + MongoDB** (platform constraint) on user approval.
+
+## User Choices
+- Stack: FastAPI + Python + MongoDB + React
+- Auth: None (single user)
+- Vehicles: Single
+- Currency/Units: INR (₹) / km / L
+- Charts: monthly trend + month-over-month + full summary
+
+## Architecture
+- **Backend**: FastAPI `/app/backend/server.py`, MongoDB collection `fuel_entries`
+- **Frontend**: React (`/app/frontend/src/`) with Recharts, Shadcn UI, lucide-react
+- **Design**: Archetype 1 — Organic & Earthy (bone white #F9F8F6, forest green #2E5339, terracotta #C05746); Work Sans + IBM Plex Sans
+
+## API Endpoints
+- `POST /api/fuel-entries` — create entry
+- `GET /api/fuel-entries` — list (newest first, with computed distance/mileage/price-per-liter/cost-per-km)
+- `PUT /api/fuel-entries/{id}` — update
+- `DELETE /api/fuel-entries/{id}` — delete
+- `GET /api/analytics/summary?month=YYYY-MM` — scoped or life-to-date stats
+- `GET /api/analytics/monthly` — per-month aggregates
+- `GET /api/analytics/months` — list of months with data
+
+## Implemented (Feb 2026)
+- Fuel entry CRUD with validation (liters/price/odometer)
+- Auto-computed mileage (km/L), distance, price/L, cost/km between consecutive odometer readings
+- Dashboard: 8 KPI tiles, monthly mileage area chart, month-over-month bar chart (spend & distance), fuel price line chart, last-2-months comparison widget
+- History log table with edit + confirm-delete
+- Month selector (life-to-date vs specific month)
+- Tested 100% on backend + frontend (iteration_1.json)
+
+## Backlog
+- P1: Multiple vehicles support
+- P1: CSV export of history
+- P2: Predicted next-refuel cost & range alerts
+- P2: Service/maintenance log alongside fuel
+- P2: PWA / offline support
+"
+Observation: Create successful: /app/memory/PRD.md

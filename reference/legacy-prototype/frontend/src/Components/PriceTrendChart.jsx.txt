@@ -1,0 +1,80 @@
+
+Action: file_editor create /app/frontend/src/components/PriceTrendChart.jsx --file-text "import {
+  CartesianGrid,
+  Line,
+  LineChart,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from \"recharts\";
+import { monthLabel, formatINR } from \"@/lib/format\";
+
+const CustomTooltip = ({ active, payload, label }) => {
+  if (!active || !payload || !payload.length) return null;
+  return (
+    <div className=\"bg-white border border-[#E5E3DB] rounded-sm px-3 py-2 text-sm\">
+      <div className=\"text-[#6B6A65] text-xs uppercase tracking-wider mb-1\">
+        {monthLabel(label)}
+      </div>
+      <div className=\"text-[#C05746] font-medium\">
+        {formatINR(payload[0].value)} / L
+      </div>
+    </div>
+  );
+};
+
+export default function PriceTrendChart({ data }) {
+  const chartData = (data || []).map((d) => ({
+    month: d.month,
+    price: d.avg_price_per_liter,
+  }));
+
+  if (chartData.length === 0) {
+    return (
+      <div
+        data-testid=\"price-trend-empty\"
+        className=\"h-56 flex items-center justify-center text-sm text-[#6B6A65] border border-dashed border-[#E5E3DB] rounded-sm\"
+      >
+        No fuel price data yet.
+      </div>
+    );
+  }
+
+  return (
+    <div data-testid=\"price-trend-chart\" style={{ width: \"100%\", height: 260 }}>
+      <ResponsiveContainer>
+        <LineChart data={chartData} margin={{ top: 8, right: 16, left: -10, bottom: 0 }}>
+          <CartesianGrid stroke=\"#E5E3DB\" vertical={false} strokeDasharray=\"0\" />
+          <XAxis
+            dataKey=\"month\"
+            tickFormatter={monthLabel}
+            stroke=\"#6B6A65\"
+            tick={{ fontSize: 11 }}
+            axisLine={{ stroke: \"#E5E3DB\" }}
+            tickLine={false}
+          />
+          <YAxis
+            stroke=\"#6B6A65\"
+            tick={{ fontSize: 11 }}
+            axisLine={false}
+            tickLine={false}
+            width={48}
+            domain={[\"auto\", \"auto\"]}
+          />
+          <Tooltip content={<CustomTooltip />} cursor={{ stroke: \"#C05746\", strokeDasharray: 3 }} />
+          <Line
+            type=\"monotone\"
+            dataKey=\"price\"
+            stroke=\"#C05746\"
+            strokeWidth={2}
+            dot={{ r: 3, fill: \"#C05746\", strokeWidth: 0 }}
+            activeDot={{ r: 5 }}
+          />
+        </LineChart>
+      </ResponsiveContainer>
+    </div>
+  );
+}
+"
+Observation: Create successful: /app/frontend/src/components/PriceTrendChart.jsx

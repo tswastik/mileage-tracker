@@ -1,0 +1,32 @@
+
+Action: file_editor view /app/test_reports/iteration_1.json
+Observation: [Showing lines 1-28 of 28 total] /app/test_reports/iteration_1.json:
+1|{
+2|  "summary": "Tested mileage tracker end-to-end (backend + frontend). All 8 backend endpoints work correctly; mileage math verified (B=50 km/L, C=62.5 km/L, life-to-date avg=55.56 km/L). Validation rejects liters<=0, price<=0, odo<0 with 400. PUT/DELETE work; DELETE on missing id returns 404. Frontend dashboard loads, Log Refuel dialog creates entry, summary updates, month selector switches scope, edit dialog pre-fills, delete confirm dialog works. No console/page errors.",
+3|  "tested_scope": ["backend", "frontend", "integration"],
+4|  "passed": [
+5|    "GET /api/ root health",
+6|    "POST /api/fuel-entries creates entries (3 seeded: odo 100/600/1100)",
+7|    "GET /api/fuel-entries returns enriched list sorted date desc; first entry mileage=null as expected",
+8|    "Mileage calculations correct: B=50 km/L, C=62.5 km/L, price_per_liter=100, cost_per_km computed",
+9|    "Validation: liters=0 -> 400, price=-1 -> 400, odometer=-5 -> 400",
+10|    "PUT /api/fuel-entries/{id} updates station/notes",
+11|    "DELETE /api/fuel-entries/{id} returns success; non-existent -> 404",
+12|    "GET /api/analytics/summary (life-to-date): total_spent=2300, total_distance=1000, avg_mileage=55.56",
+13|    "GET /api/analytics/summary?month=2025-02: scoped correctly (1800, 1000, 55.56)",
+14|    "GET /api/analytics/monthly: 2 buckets, Jan mileage=null, Feb=55.56",
+15|    "GET /api/analytics/months: ['2025-02','2025-01'] desc",
+16|    "Frontend: dashboard loads with title 'Mileage Ledger', history-count reflects backend data",
+17|    "Frontend: Log Refuel button opens dialog, form submits, toast appears, history-count increments 2->3",
+18|    "Frontend: month selector switches scope to Feb 2025 and KPIs update (50 km/L, 500 km)",
+19|    "Frontend: edit-entry button opens prefilled dialog (odometer=1500 matched)",
+20|    "Frontend: delete-entry shows inline confirm and removes row"
+21|  ],
+22|  "failed": [],
+23|  "action_items": [],
+24|  "success_rate": {"backend": "100%", "frontend": "100%"},
+25|  "retest_needed": false,
+26|  "full_testing_deferred": true
+27|}
+28|
+[End of file]

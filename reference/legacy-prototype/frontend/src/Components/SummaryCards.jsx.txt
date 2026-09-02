@@ -1,0 +1,106 @@
+
+Action: file_editor create /app/frontend/src/components/SummaryCards.jsx --file-text "import { Gauge, IndianRupee, Route, Droplet, TrendingDown, Receipt } from \"lucide-react\";
+import { formatINR, formatNum } from \"@/lib/format\";
+
+const Card = ({ icon: Icon, label, value, accent = \"#2E5339\", testId }) => (
+  <div
+    data-testid={testId}
+    className=\"bg-white border border-[#E5E3DB] rounded-sm p-6 fade-up\"
+  >
+    <div className=\"flex items-center justify-between mb-4\">
+      <span className=\"text-xs uppercase tracking-[0.2em] text-[#6B6A65] font-semibold\">
+        {label}
+      </span>
+      <div
+        className=\"w-8 h-8 rounded-sm flex items-center justify-center\"
+        style={{ backgroundColor: accent + \"14\" }}
+      >
+        <Icon className=\"w-4 h-4\" style={{ color: accent }} strokeWidth={2} />
+      </div>
+    </div>
+    <div
+      className=\"text-3xl font-semibold tracking-tight text-[#2C2C2A]\"
+      style={{ fontFamily: \"'Work Sans', sans-serif\" }}
+    >
+      {value}
+    </div>
+  </div>
+);
+
+export default function SummaryCards({ summary, loading }) {
+  if (loading || !summary) {
+    return (
+      <div className=\"grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6\">
+        {[0, 1, 2, 3].map((i) => (
+          <div
+            key={i}
+            className=\"bg-white border border-[#E5E3DB] rounded-sm p-6 h-32 animate-pulse\"
+          />
+        ))}
+      </div>
+    );
+  }
+
+  return (
+    <div className=\"grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6\">
+      <Card
+        testId=\"metric-avg-mileage\"
+        icon={Gauge}
+        label=\"Avg Mileage\"
+        value={formatNum(summary.avg_mileage_kmpl, \" km/L\", 2)}
+        accent=\"#2E5339\"
+      />
+      <Card
+        testId=\"metric-total-spent\"
+        icon={IndianRupee}
+        label=\"Total Spent\"
+        value={formatINR(summary.total_spent)}
+        accent=\"#C05746\"
+      />
+      <Card
+        testId=\"metric-total-distance\"
+        icon={Route}
+        label=\"Distance\"
+        value={formatNum(summary.total_distance, \" km\", 1)}
+        accent=\"#3D5A80\"
+      />
+      <Card
+        testId=\"metric-total-liters\"
+        icon={Droplet}
+        label=\"Fuel Used\"
+        value={formatNum(summary.total_liters, \" L\", 2)}
+        accent=\"#2E5339\"
+      />
+      <Card
+        testId=\"metric-cost-per-km\"
+        icon={TrendingDown}
+        label=\"Cost / km\"
+        value={formatINR(summary.avg_cost_per_km)}
+        accent=\"#C05746\"
+      />
+      <Card
+        testId=\"metric-price-per-liter\"
+        icon={Receipt}
+        label=\"Avg ₹/L\"
+        value={formatINR(summary.avg_price_per_liter)}
+        accent=\"#3D5A80\"
+      />
+      <Card
+        testId=\"metric-entry-count\"
+        icon={Receipt}
+        label=\"Refuels\"
+        value={formatNum(summary.entry_count, \"\", 0)}
+        accent=\"#6B6A65\"
+      />
+      <Card
+        testId=\"metric-scope\"
+        icon={Gauge}
+        label=\"Scope\"
+        value={summary.scope === \"life-to-date\" ? \"All Time\" : summary.scope}
+        accent=\"#2E5339\"
+      />
+    </div>
+  );
+}
+"
+Observation: Create successful: /app/frontend/src/components/SummaryCards.jsx

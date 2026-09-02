@@ -1,0 +1,18 @@
+
+Action: file_editor create /app/frontend/src/lib/api.js --file-text "import axios from \"axios\";
+
+const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
+export const API = `${BACKEND_URL}/api`;
+
+export const api = axios.create({ baseURL: API });
+
+export const fetchEntries = () => api.get(\"/fuel-entries\").then((r) => r.data);
+export const createEntry = (payload) => api.post(\"/fuel-entries\", payload).then((r) => r.data);
+export const updateEntry = (id, payload) => api.put(`/fuel-entries/${id}`, payload).then((r) => r.data);
+export const deleteEntry = (id) => api.delete(`/fuel-entries/${id}`).then((r) => r.data);
+export const fetchSummary = (month) =>
+  api.get(\"/analytics/summary\", { params: month ? { month } : {} }).then((r) => r.data);
+export const fetchMonthly = () => api.get(\"/analytics/monthly\").then((r) => r.data);
+export const fetchMonths = () => api.get(\"/analytics/months\").then((r) => r.data);
+"
+Observation: Create successful: /app/frontend/src/lib/api.js

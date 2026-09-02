@@ -1,0 +1,27 @@
+
+Action: file_editor create /app/frontend/src/lib/format.js --file-text "export const formatINR = (n) => {
+  if (n === null || n === undefined || isNaN(n)) return \"—\";
+  return \"₹\" + Number(n).toLocaleString(\"en-IN\", { maximumFractionDigits: 2 });
+};
+
+export const formatNum = (n, suffix = \"\", decimals = 2) => {
+  if (n === null || n === undefined || isNaN(n)) return \"—\";
+  return Number(n).toLocaleString(\"en-IN\", { maximumFractionDigits: decimals }) + suffix;
+};
+
+export const monthLabel = (yyyymm) => {
+  if (!yyyymm) return \"\";
+  const [y, m] = yyyymm.split(\"-\");
+  const date = new Date(parseInt(y), parseInt(m) - 1, 1);
+  return date.toLocaleString(\"en-IN\", { month: \"short\", year: \"numeric\" });
+};
+
+export const todayISO = () => {
+  const d = new Date();
+  const yyyy = d.getFullYear();
+  const mm = String(d.getMonth() + 1).padStart(2, \"0\");
+  const dd = String(d.getDate()).padStart(2, \"0\");
+  return `${yyyy}-${mm}-${dd}`;
+};
+"
+Observation: Create successful: /app/frontend/src/lib/format.js

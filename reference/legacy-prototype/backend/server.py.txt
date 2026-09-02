@@ -1,0 +1,246 @@
+Now let me build everything in parallel — backend server, frontend pages, and components.
+Action: file_editor create /app/backend/server.py --file-text "from fastapi import FastAPI, APIRouter, HTTPException
+from dotenv import load_dotenv
+from starlette.middleware.cors import CORSMiddleware
+from motor.motor_asyncio import AsyncIOMotorClient
+import os
+import logging
+from pathlib import Path
+from pydantic import BaseModel, Field, ConfigDict
+from typing import List, Optional
+import uuid
+from datetime import datetime, timezone
+from collections import defaultdict
+
+ROOT_DIR = Path(__file__).parent
+load_dotenv(ROOT_DIR / '.env')
+
+mongo_url = os.environ['MONGO_URL']
+client = AsyncIOMotorClient(mongo_url)
+db = client[os.environ['DB_NAME']]
+
+app = FastAPI()
+api_router = APIRouter(prefix=\"/api\")
+
+
+# ---------- Models ----------
+class FuelEntryCreate(BaseModel):
+    date: str  # ISO date string YYYY-MM-DD
+    odometer_km: float
+    liters: float
+    total_price_inr: float
+    station: Optional[str] = \"\"
+    notes: Optional[str] = \"\"
+
+
+class FuelEntryUpdate(BaseModel):
+    date: Optional[str] = None
+    odometer_km: Optional[float] = None
+    liters: Optional[float] = None
+    total_price_inr: Optional[float] = None
+    station: Optional[str] = None
+    notes: Optional[str] = None
+
+
+class FuelEntry(BaseModel):
+    model_config = ConfigDict(extra=\"ignore\")
+
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    date: str
+    odometer_km: float
+    liters: float
+    total_price_inr: float
+    station: str = \"\"
+    notes: str = \"\"
+    created_at: str = Field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
+
+
+# ---------- Helpers ----------
+async def _fetch_all_sorted() -> List[dict]:
+    docs = await db.fuel_entries.find({}, {\"_id\": 0}).to_list(10000)
+    docs.sort(key=lambda d: (d.get(\"date\", \"\"), d.get(\"created_at\", \"\")))
+    return docs
+
+
+def _compute_entries_with_mileage(docs: List[dict]) -> List[dict]:
+    \"\"\"Returns entries sorted by date asc with computed distance_km and mileage_kmpl.
+    Mileage for an entry is calculated as (this.odometer - previous.odometer) / this.liters.
+    First entry has no mileage (None) because we have no prior odometer baseline.
+    \"\"\"
+    result = []
+    prev_odo = None
+    for d in docs:
+        distance = None
+        mileage = None
+        if prev_odo is not None and d[\"odometer_km\"] > prev_odo:
+            distance = round(d[\"odometer_km\"] - prev_odo, 2)
+            if d[\"liters\"] > 0:
+                mileage = round(distance / d[\"liters\"], 2)
+        price_per_liter = round(d[\"total_price_inr\"] / d[\"liters\"], 2) if d[\"liters\"] > 0 else None
+        cost_per_km = round(d[\"total_price_inr\"] / distance, 2) if distance and distance > 0 else None
+        enriched = {
+            **d,
+            \"distance_km\": distance,
+            \"mileage_kmpl\": mileage,
+            \"price_per_liter\": price_per_liter,
+            \"cost_per_km\": cost_per_km,
+        }
+        result.append(enriched)
+        prev_odo = d[\"odometer_km\"]
+    return result
+
+
+# ---------- Routes ----------
+@api_router.get(\"/\")
+async def root():
+    return {\"message\": \"Mileage Tracker API\"}
+
+
+@api_router.post(\"/fuel-entries\", response_model=FuelEntry)
+async def create_fuel_entry(payload: FuelEntryCreate):
+    if payload.liters <= 0 or payload.total_price_inr <= 0 or payload.odometer_km < 0:
+        raise HTTPException(status_code=400, detail=\"Invalid numeric values\")
+    entry = FuelEntry(**payload.model_dump())
+    await db.fuel_entries.insert_one(entry.model_dump())
+    return entry
+
+
+@api_router.get(\"/fuel-entries\")
+async def list_fuel_entries():
+    docs = await _fetch_all_sorted()
+    enriched = _compute_entries_with_mileage(docs)
+    # Return latest first
+    enriched.sort(key=lambda d: (d.get(\"date\", \"\"), d.get(\"created_at\", \"\")), reverse=True)
+    return enriched
+
+
+@api_router.put(\"/fuel-entries/{entry_id}\", response_model=FuelEntry)
+async def update_fuel_entry(entry_id: str, payload: FuelEntryUpdate):
+    existing = await db.fuel_entries.find_one({\"id\": entry_id}, {\"_id\": 0})
+    if not existing:
+        raise HTTPException(status_code=404, detail=\"Entry not found\")
+    updates = {k: v for k, v in payload.model_dump().items() if v is not None}
+    if updates:
+        await db.fuel_entries.update_one({\"id\": entry_id}, {\"$set\": updates})
+    updated = await db.fuel_entries.find_one({\"id\": entry_id}, {\"_id\": 0})
+    return FuelEntry(**updated)
+
+
+@api_router.delete(\"/fuel-entries/{entry_id}\")
+async def delete_fuel_entry(entry_id: str):
+    result = await db.fuel_entries.delete_one({\"id\": entry_id})
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail=\"Entry not found\")
+    return {\"success\": True}
+
+
+@api_router.get(\"/analytics/summary\")
+async def analytics_summary(month: Optional[str] = None):
+    \"\"\"month format: 'YYYY-MM' or None for life-to-date.\"\"\"
+    docs = await _fetch_all_sorted()
+    enriched = _compute_entries_with_mileage(docs)
+
+    if month:
+        scope = [e for e in enriched if e[\"date\"].startswith(month)]
+    else:
+        scope = enriched
+
+    total_spent = round(sum(e[\"total_price_inr\"] for e in scope), 2)
+    total_liters = round(sum(e[\"liters\"] for e in scope), 2)
+    # distance only valid where we have a previous entry
+    distances = [e[\"distance_km\"] for e in scope if e.get(\"distance_km\") is not None]
+    total_distance = round(sum(distances), 2) if distances else 0.0
+
+    # Aggregate mileage = total_distance_with_prior / liters_consumed_for_that_distance
+    liters_consumed = round(
+        sum(e[\"liters\"] for e in scope if e.get(\"distance_km\") is not None), 2
+    )
+    avg_mileage = round(total_distance / liters_consumed, 2) if liters_consumed > 0 else None
+    avg_cost_per_km = round(
+        sum(e[\"total_price_inr\"] for e in scope if e.get(\"distance_km\") is not None) / total_distance,
+        2,
+    ) if total_distance > 0 else None
+    avg_price_per_liter = round(total_spent / total_liters, 2) if total_liters > 0 else None
+
+    return {
+        \"scope\": month or \"life-to-date\",
+        \"entry_count\": len(scope),
+        \"total_spent\": total_spent,
+        \"total_liters\": total_liters,
+        \"total_distance\": total_distance,
+        \"avg_mileage_kmpl\": avg_mileage,
+        \"avg_cost_per_km\": avg_cost_per_km,
+        \"avg_price_per_liter\": avg_price_per_liter,
+    }
+
+
+@api_router.get(\"/analytics/monthly\")
+async def analytics_monthly():
+    \"\"\"Returns per-month aggregates for charts.\"\"\"
+    docs = await _fetch_all_sorted()
+    enriched = _compute_entries_with_mileage(docs)
+
+    buckets = defaultdict(lambda: {
+        \"total_spent\": 0.0,
+        \"total_liters\": 0.0,
+        \"total_distance\": 0.0,
+        \"liters_consumed\": 0.0,  # liters for which we have distance
+        \"price_sum\": 0.0,
+        \"entry_count\": 0,
+    })
+
+    for e in enriched:
+        m = e[\"date\"][:7]  # YYYY-MM
+        b = buckets[m]
+        b[\"total_spent\"] += e[\"total_price_inr\"]
+        b[\"total_liters\"] += e[\"liters\"]
+        b[\"entry_count\"] += 1
+        b[\"price_sum\"] += e[\"total_price_inr\"]
+        if e.get(\"distance_km\") is not None:
+            b[\"total_distance\"] += e[\"distance_km\"]
+            b[\"liters_consumed\"] += e[\"liters\"]
+
+    months_sorted = sorted(buckets.keys())
+    result = []
+    for m in months_sorted:
+        b = buckets[m]
+        avg_mileage = round(b[\"total_distance\"] / b[\"liters_consumed\"], 2) if b[\"liters_consumed\"] > 0 else None
+        avg_price_per_liter = round(b[\"total_spent\"] / b[\"total_liters\"], 2) if b[\"total_liters\"] > 0 else None
+        result.append({
+            \"month\": m,
+            \"total_spent\": round(b[\"total_spent\"], 2),
+            \"total_liters\": round(b[\"total_liters\"], 2),
+            \"total_distance\": round(b[\"total_distance\"], 2),
+            \"avg_mileage_kmpl\": avg_mileage,
+            \"avg_price_per_liter\": avg_price_per_liter,
+            \"entry_count\": b[\"entry_count\"],
+        })
+    return result
+
+
+@api_router.get(\"/analytics/months\")
+async def list_months():
+    docs = await _fetch_all_sorted()
+    months = sorted({d[\"date\"][:7] for d in docs if d.get(\"date\")}, reverse=True)
+    return months
+
+
+app.include_router(api_router)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_credentials=True,
+    allow_origins=os.environ.get('CORS_ORIGINS', '*').split(','),
+    allow_methods=[\"*\"],
+    allow_headers=[\"*\"],
+)
+
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+logger = logging.getLogger(__name__)
+
+
+@app.on_event(\"shutdown\")
+async def shutdown_db_client():
+    client.close()
+"
+Observation: Overwrite successful: /app/backend/server.py

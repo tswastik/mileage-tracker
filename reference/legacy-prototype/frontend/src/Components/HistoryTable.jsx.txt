@@ -1,0 +1,191 @@
+
+Action: file_editor create /app/frontend/src/components/HistoryTable.jsx --file-text "import { Pencil, Trash2 } from \"lucide-react\";
+import { formatINR, formatNum } from \"@/lib/format\";
+import { Button } from \"@/components/ui/button\";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from \"@/components/ui/alert-dialog\";
+
+const formatDate = (iso) => {
+  if (!iso) return \"—\";
+  const d = new Date(iso);
+  return d.toLocaleDateString(\"en-IN\", { day: \"2-digit\", month: \"short\", year: \"numeric\" });
+};
+
+export default function HistoryTable({ entries, onEdit, onDelete }) {
+  if (!entries || entries.length === 0) {
+    return (
+      <div
+        data-testid=\"history-empty\"
+        className=\"py-16 flex flex-col items-center justify-center text-center border border-dashed border-[#E5E3DB] rounded-sm\"
+      >
+        <img
+          src=\"https://images.unsplash.com/photo-1579282167525-1f370de7933b?crop=entropy&cs=srgb&fm=jpg&w=400&q=70\"
+          alt=\"empty road\"
+          className=\"w-32 h-32 object-cover rounded-sm mb-4 opacity-80\"
+        />
+        <div className=\"text-base font-medium text-[#2C2C2A] mb-1\">No refuels logged yet</div>
+        <div className=\"text-sm text-[#6B6A65]\">
+          Tap \"Log Refuel\" to record your first fill-up.
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className=\"overflow-x-auto\">
+      <table className=\"w-full text-sm\" data-testid=\"history-table\">
+        <thead>
+          <tr className=\"text-xs uppercase tracking-[0.15em] text-[#6B6A65] font-semibold\">
+            <th className=\"text-left py-3 pr-4 border-b border-[#E5E3DB]\">Date</th>
+            <th className=\"text-right py-3 px-2 border-b border-[#E5E3DB]\">Odometer (km)</th>
+            <th className=\"text-right py-3 px-2 border-b border-[#E5E3DB]\">Liters</th>
+            <th className=\"text-right py-3 px-2 border-b border-[#E5E3DB]\">Price</th>
+            <th className=\"text-right py-3 px-2 border-b border-[#E5E3DB]\">₹ / L</th>
+            <th className=\"text-right py-3 px-2 border-b border-[#E5E3DB]\">Distance</th>
+            <th className=\"text-right py-3 px-2 border-b border-[#E5E3DB]\">Mileage</th>
+            <th className=\"text-left py-3 px-2 border-b border-[#E5E3DB]\">Station</th>
+            <th className=\"text-right py-3 pl-2 border-b border-[#E5E3DB]\">Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {entries.map((e) => (
+            <tr
+              key={e.id}
+              data-testid={`history-row-${e.id}`}
+              className=\"hover:bg-[#F9F8F6] transition-colors\"
+            >
+              <td className=\"py-3 pr-4 border-b border-[#E5E3DB] text-[#2C2C2A]\">
+                {formatDate(e.date)}
+              </td>
+              <td className=\"py-3 px-2 border-b border-[#E5E3DB] text-right text-[#2C2C2A] tabular-nums\">
+                {formatNum(e.odometer_km, \"\", 1)}
+              </td>
+              <td className=\"py-3 px-2 border-b border-[#E5E3DB] text-right text-[#2C2C2A] tabular-nums\">
+                {formatNum(e.liters, \" L\", 2)}
+              </td>
+              <td className=\"py-3 px-2 border-b border-[#E5E3DB] text-right text-[#2C2C2A] tabular-nums\">
+                {formatINR(e.total_price_inr)}
+              </td>
+              <td className=\"py-3 px-2 border-b border-[#E5E3DB] text-right text-[#6B6A65] tabular-nums\">
+                {formatINR(e.price_per_liter)}
+              </td>
+              <td className=\"py-3 px-2 border-b border-[#E5E3DB] text-right text-[#6B6A65] tabular-nums\">
+                {e.distance_km != null ? formatNum(e.distance_km, \" km\", 1) : \"—\"}
+              </td>
+              <td className=\"py-3 px-2 border-b border-[#E5E3DB] text-right tabular-nums\">
+                <span
+                  className={
+                    e.mileage_kmpl != null
+                      ? \"text-[#2E5339] font-medium\"
+                      : \"text-[#6B6A65]\"
+                  }
+                >
+                  {e.mileage_kmpl != null ? formatNum(e.mileage_kmpl, \" km/L\", 2) : \"—\"}
+                </span>
+              </td>
+              <td className=\"py-3 px-2 border-b border-[#E5E3DB] text-[#6B6A65]\">
+                {e.station || \"—\"}
+              </td>
+              <td className=\"py-3 pl-2 border-b border-[#E5E3DB]\">
+                <div className=\"flex items-center justify-end gap-1\">
+                  <Button
+                    data-testid={`edit-entry-${e.id}`}
+                    variant=\"ghost\"
+                    size=\"icon\"
+                    onClick={() => onEdit(e)}
+                    className=\"h-8 w-8 text-[#6B6A65] hover:text-[#2E5339] hover:bg-[#F9F8F6]\"
+                  >
+                    <Pencil className=\"w-4 h-4\" />
+                  </Button>
+                  <AlertDialog>
+                    <AlertDialogTrigger asChild>
+                      <Button
+                        data-testid={`delete-entry-${e.id}`}
+                        variant=\"ghost\"
+                        size=\"icon\"
+                        className=\"h-8 w-8 text-[#6B6A65] hover:text-[#C05746] hover:bg-[#F9F8F6]\"
+                      >
+                        <Trash2 className=\"w-4 h-4\" />
+                      </Button>
+                    </AlertDialogTrigger>
+                    <AlertDialogContent className=\"bg-white border-[#E5E3DB] rounded-sm\">
+                      <AlertDialogHeader>
+                        <AlertDialogTitle>Delete this refuel?</AlertedlogTitleAlt />
+                      </AlertDialogHeader>
+                    </AlertDialogContent>
+                  </AlertDialog>
+                </div>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+"
+Observation: Create successful: /app/frontend/src/components/HistoryTable.jsx
+
+Correction:
+I noticed a bug in HistoryTable.jsx — the AlertDialog has a typo and missing content. Let me fix it.
+Action: file_editor str_replace /app/frontend/src/components/HistoryTable.jsx --old-str "                  <AlertDialog>
+                    <AlertDialogTrigger asChild>
+                      <Button
+                        data-testid={`delete-entry-${e.id}`}
+                        variant=\"ghost\"
+                        size=\"icon\"
+                        className=\"h-8 w-8 text-[#6B6A65] hover:text-[#C05746] hover:bg-[#F9F8F6]\"
+                      >
+                        <Trash2 className=\"w-4 h-4\" />
+                      </Button>
+                    </AlertDialogTrigger>
+                    <AlertDialogContent className=\"bg-white border-[#E5E3DB] rounded-sm\">
+                      <AlertDialogHeader>
+                        <AlertDialogTitle>Delete this refuel?</AlertedlogTitleAlt />
+                      </AlertDialogHeader>
+                    </AlertDialogContent>
+                  </AlertDialog>" --new-str "                  <AlertDialog>
+                    <AlertDialogTrigger asChild>
+                      <Button
+                        data-testid={`delete-entry-${e.id}`}
+                        variant=\"ghost\"
+                        size=\"icon\"
+                        className=\"h-8 w-8 text-[#6B6A65] hover:text-[#C05746] hover:bg-[#F9F8F6]\"
+                      >
+                        <Trash2 className=\"w-4 h-4\" />
+                      </Button>
+                    </AlertDialogTrigger>
+                    <AlertDialogContent className=\"bg-white border-[#E5E3DB] rounded-sm\">
+                      <AlertDialogHeader>
+                        <AlertDialogTitle>Delete this refuel?</AlertDialogTitle>
+                        <AlertDialogDescription className=\"text-[#6B6A65]\">
+                          This will permanently remove the entry from {formatDate(e.date)}. Mileage for the next entry will be recalculated.
+                        </AlertDialogDescription>
+                      </AlertDialogHeader>
+                      <AlertDialogFooter>
+                        <AlertDialogCancel
+                          data-testid={`cancel-delete-${e.id}`}
+                          className=\"bg-white text-[#2C2C2A] border-[#E5E3DB] hover:bg-[#F9F8F6] rounded-sm\"
+                        >
+                          Cancel
+                        </AlertDialogCancel>
+                        <AlertDialogAction
+                          data-testid={`confirm-delete-${e.id}`}
+                          onClick={() => onDelete(e.id)}
+                          className=\"bg-[#C05746] hover:bg-[#9A4537] text-white rounded-sm\"
+                        >
+                          Delete
+                        </AlertDialogAction>
+                      </AlertDialogFooter>
+                    </AlertDialogContent>
+                  </AlertDialog>"
+Observation: Edit was successful.

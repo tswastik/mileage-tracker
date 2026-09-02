@@ -1,0 +1,6 @@
+Summary: ## Mileage Tracker MVP Complete
+
+Built a single-user petrol/mileage tracker (FastAPI + MongoDB + React) — Django was swapped for FastAPI per platform constraint (user approved).
+Features: refuel CRUD (date, odometer, liters, ₹), auto-computed mileage (km/L) between consecutive odometer readings, history log with edit/delete, 8 KPI tiles, monthly mileage area chart, month-over-month bar chart, fuel price line chart, last-2-months comparison, scope toggle (life-to-date vs specific month).
+Design follows the Organic & Earthy palette (bone white + forest green + terracotta) with Work Sans/IBM Plex Sans typography and a flat, cardless Shadcn aesthetic.
+Tested end-to-end — 100% pass on backend (all 8 endpoints, validation, mileage math verified) and frontend (dialog, summary updates, month scope, edit/delete).

@@ -1,0 +1,81 @@
+
+Action file_editor create appfrontendsrccomponentsMonthlyComparisonChart.jsx --file-text import {
+  Bar,
+  BarChart,
+  CartesianGrid,
+  Legend,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from recharts;
+import { monthLabel, formatINR, formatNum } from @libformat;
+
+const CustomTooltip = ({ active, payload, label }) = {
+  if (!active  !payload  !payload.length) return null;
+  const spent = payload.find((p) = p.dataKey === spent).value;
+  const distance = payload.find((p) = p.dataKey === distance).value;
+  return (
+    div className=bg-white border border-[#E5E3DB] rounded-sm px-3 py-2 text-sm
+      div className=text-[#6B6A65] text-xs uppercase tracking-wider mb-1
+        {monthLabel(label)}
+      div
+      div className=text-[#C05746]Spent {formatINR(spent)}div
+      div className=text-[#3D5A80]Distance {formatNum(distance,  km, 0)}div
+    div
+  );
+};
+
+export default function MonthlyComparisonChart({ data }) {
+  const chartData = (data  []).map((d) = ({
+    month d.month,
+    spent d.total_spent,
+    distance d.total_distance,
+  }));
+
+  if (chartData.length === 0) {
+    return (
+      div
+        data-testid=comparison-empty
+        className=h-56 flex items-center justify-center text-sm text-[#6B6A65] border border-dashed border-[#E5E3DB] rounded-sm
+      
+        No monthly data yet.
+      div
+    );
+  }
+
+  return (
+    div data-testid=comparison-chart style={{ width 100%, height 260 }}
+      ResponsiveContainer
+        BarChart data={chartData} margin={{ top 8, right 8, left -10, bottom 0 }}
+          CartesianGrid stroke=#E5E3DB vertical={false} strokeDasharray=0 
+          XAxis
+            dataKey=month
+            tickFormatter={monthLabel}
+            stroke=#6B6A65
+            tick={{ fontSize 11 }}
+            axisLine={{ stroke #E5E3DB }}
+            tickLine={false}
+          
+          YAxis
+            stroke=#6B6A65
+            tick={{ fontSize 11 }}
+            axisLine={false}
+            tickLine={false}
+            width={48}
+          
+          Tooltip content={CustomTooltip } cursor={{ fill #F9F8F6 }} 
+          Legend
+            wrapperStyle={{ fontSize 12, color #6B6A65 }}
+            iconType=square
+            iconSize={10}
+          
+          Bar dataKey=spent name=Spent (₹) fill=#C05746 radius={[2, 2, 0, 0]} 
+          Bar dataKey=distance name=Distance (km) fill=#3D5A80 radius={[2, 2, 0, 0]} 
+        BarChart
+      ResponsiveContainer
+    div
+  );
+}
+
+Observation Create successful appfrontendsrccomponentsMonthlyComparisonChart.jsx
