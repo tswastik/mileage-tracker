@@ -2,22 +2,13 @@ import React from 'react';
 import { View, Text, Pressable, StyleSheet } from 'react-native';
 import { colors, fonts, radii, spacing } from '../constants/theme';
 import { formatDisplayDate } from '../utils/dateFormat';
+import { formatInr, formatNum } from '../utils/format';
 import type { EnrichedFuelEntry } from '../types/fuelEntry';
 
 interface Props {
   entry: EnrichedFuelEntry;
   onEdit: () => void;
   onDelete: () => void;
-}
-
-function formatNum(n: number | null, suffix = '', decimals = 2): string {
-  if (n === null || Number.isNaN(n)) return '—';
-  return n.toLocaleString('en-IN', { maximumFractionDigits: decimals }) + suffix;
-}
-
-function formatInr(n: number | null): string {
-  if (n === null || Number.isNaN(n)) return '—';
-  return '₹' + n.toLocaleString('en-IN', { maximumFractionDigits: 2 });
 }
 
 export default function HistoryRow({ entry, onEdit, onDelete }: Props) {

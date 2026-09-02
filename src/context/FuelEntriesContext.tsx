@@ -1,8 +1,15 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useReducer } from 'react';
 import * as fuelEntryRepository from '../db/fuelEntryRepository';
-import { computeEnrichedEntries, sortHistoryDescending } from '../utils/mileageEngine';
+import {
+  computeEnrichedEntries,
+  computeMonthlyBreakdown,
+  computeSummary,
+  listDistinctMonthsDescending,
+  sortHistoryDescending,
+} from '../utils/mileageEngine';
 import { validateFuelEntryInput } from '../utils/odometerValidation';
 import type { EnrichedFuelEntry, FuelEntry, FuelEntryInput } from '../types/fuelEntry';
+import type { MonthlyBreakdownEntry, SummaryStats } from '../types/analytics';
 
 interface State {
   entries: FuelEntry[];
@@ -38,6 +45,9 @@ interface FuelEntriesContextValue {
   entries: FuelEntry[];
   enrichedEntries: EnrichedFuelEntry[];
   historyEntries: EnrichedFuelEntry[];
+  monthlyBreakdown: MonthlyBreakdownEntry[];
+  distinctMonths: string[];
+  getSummary: (month: string | null) => SummaryStats;
   getEntryById: (id: number) => FuelEntry | undefined;
   addEntry: (input: FuelEntryInput) => Promise<void>;
   updateEntry: (id: number, input: FuelEntryInput) => Promise<void>;
@@ -90,6 +100,12 @@ export function FuelEntriesProvider({ children }: { children: React.ReactNode })
 
   const enrichedEntries = useMemo(() => computeEnrichedEntries(state.entries), [state.entries]);
   const historyEntries = useMemo(() => sortHistoryDescending(enrichedEntries), [enrichedEntries]);
+  const monthlyBreakdown = useMemo(() => computeMonthlyBreakdown(enrichedEntries), [enrichedEntries]);
+  const distinctMonths = useMemo(() => listDistinctMonthsDescending(enrichedEntries), [enrichedEntries]);
+  const getSummary = useCallback(
+    (month: string | null) => computeSummary(enrichedEntries, month),
+    [enrichedEntries]
+  );
 
   const value = useMemo<FuelEntriesContextValue>(
     () => ({
@@ -97,12 +113,27 @@ export function FuelEntriesProvider({ children }: { children: React.ReactNode })
       entries: state.entries,
       enrichedEntries,
       historyEntries,
+      monthlyBreakdown,
+      distinctMonths,
+      getSummary,
       getEntryById,
       addEntry,
       updateEntry,
       deleteEntry,
     }),
-    [state.loading, state.entries, enrichedEntries, historyEntries, getEntryById, addEntry, updateEntry, deleteEntry]
+    [
+      state.loading,
+      state.entries,
+      enrichedEntries,
+      historyEntries,
+      monthlyBreakdown,
+      distinctMonths,
+      getSummary,
+      getEntryById,
+      addEntry,
+      updateEntry,
+      deleteEntry,
+    ]
   );
 
   return <FuelEntriesContext.Provider value={value}>{children}</FuelEntriesContext.Provider>;

@@ -25,14 +25,17 @@ src/db/
 
 src/utils/
   dateFormat.ts             — local-safe date-fns parse/format (fixes the original's UTC off-by-one)
+  format.ts                  — formatInr/formatNum (en-IN, "—" for null), shared by HistoryRow + Dashboard
   mileageEngine.ts           — chronologicalSort, computeEnrichedEntries (distance/mileage/price-per-
-                              liter/cost-per-km), sortHistoryDescending
+                              liter/cost-per-km), sortHistoryDescending, computeSummary (life-to-date or
+                              month scope), computeMonthlyBreakdown, listDistinctMonthsDescending
   odometerValidation.ts      — validateFuelEntryInput: the odometer-sequencing fix (see Project_Plan.md)
 
 src/context/
   FuelEntriesContext.tsx    — React Context + useReducer (LOADED/ADDED/UPDATED/REMOVED); addEntry/
                               updateEntry validate via odometerValidation before writing; exposes
-                              enrichedEntries (ascending) and historyEntries (descending) selectors
+                              enrichedEntries/historyEntries/monthlyBreakdown/distinctMonths and a
+                              getSummary(month) selector, all memoized off the raw entries array
 
 src/navigation/
   types.ts                 — RootStackParamList (MainTabs, AddEditEntry), MainTabParamList
@@ -41,7 +44,7 @@ src/navigation/
   MainTabs.tsx               — bottom tabs: Dashboard / History / Settings
 
 src/screens/
-  DashboardScreen.tsx        — placeholder text + "+ Log refuel" entry point; KPIs/charts land in Phases 3-4
+  DashboardScreen.tsx        — scope selector + 8 KPI tiles wired to real data; charts land in Phase 4
   HistoryScreen.tsx           — full CRUD: list (newest-first), edit, delete (via ConfirmDialog)
   SettingsScreen.tsx          — placeholder; export/backup land in Phase 5
   AddEditEntryScreen.tsx      — shared add+edit form; inline validation error text on failure
@@ -52,6 +55,8 @@ src/components/
   HistoryRow.tsx              — one history list row (date/odometer/liters/price/mileage/actions)
   ConfirmDialog.tsx           — custom in-app confirm modal, used instead of Alert.alert/window.confirm
                               (see "Confirmation dialogs" below)
+  KpiTile.tsx                 — one dashboard KPI card (icon chip at accentColor+"14" alpha, label, value)
+  ScopeSelector.tsx            — horizontal chip row: "All time" + one chip per distinct month (descending)
 
 reference/legacy-prototype/  — the original FastAPI+MongoDB+React web prototype this app replaces,
                               kept for logic reference only, never executed
@@ -77,4 +82,4 @@ Destructive actions (currently just delete) use the custom `src/components/Confi
 
 ## Status
 
-Phase 2 complete: add/edit/delete fully wired to SQLite, odometer-sequencing validation confirmed working (rejects a decreasing/conflicting reading on both create and edit), mileage/distance/price-per-liter/cost-per-km all compute correctly, History lists newest-first. Verified end-to-end via `expo start --web`. See `Project_Plan.md` for what's next (Phase 3: analytics engine + Dashboard KPIs).
+Phase 3 complete: analytics engine (`computeSummary`/`computeMonthlyBreakdown`/`listDistinctMonthsDescending`) and the Dashboard's 8 KPI tiles + scope selector are wired to real SQLite data. Verified end-to-end via `expo start --web`, including the asymmetric formula (avg ₹/L over all entries vs. avg mileage/cost-per-km over only distance-having entries) producing correct numbers. See `Project_Plan.md` for what's next (Phase 4: charts).

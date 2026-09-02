@@ -47,6 +47,8 @@ Update: `expo-sqlite`'s web target actually works — it just needs `metro.confi
 
 - [x] Phase 1 — scaffold, DB, nav shell
 - [x] Phase 2 — Add/Edit + History + validation
-- [ ] Phase 3 — Analytics + Dashboard KPIs
+- [x] Phase 3 — Analytics + Dashboard KPIs
 - [ ] Phase 4 — Charts
 - [ ] Phase 5 — Export, backup, settings, polish
+
+Small deliberate deviation from the original in Phase 3: the "Scope" KPI tile shows a formatted month label (e.g. "Sep 2026") instead of the original's raw "YYYY-MM" string — a display-only polish, not a calculation change, so it doesn't affect the numeric-parity goal.
