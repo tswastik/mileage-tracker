@@ -46,8 +46,15 @@ src/navigation/
 src/screens/
   DashboardScreen.tsx        — scope selector + 8 KPI tiles + all 4 charts, all wired to real data
   HistoryScreen.tsx           — full CRUD: list (newest-first), edit, delete (via ConfirmDialog)
-  SettingsScreen.tsx          — placeholder; export/backup land in Phase 5
+  SettingsScreen.tsx          — CSV export, JSON backup/restore (with confirm dialog), app info
   AddEditEntryScreen.tsx      — shared add+edit form; inline validation error text on failure
+
+src/export/
+  exportService.ts            — buildEntriesCsv + exportEntriesAsCsv (expo-file-system + expo-sharing)
+
+src/backup/
+  backupService.ts            — versioned {version, exportedAt, entries} JSON envelope;
+                              writeAndShareBackup, pickAndReadBackup (+ isBackupPayload type guard)
 
 src/components/
   DateField.tsx (+.web.tsx)   — date picker field; native uses @react-native-community/datetimepicker,
@@ -64,6 +71,11 @@ src/components/
   MonthComparisonChart.tsx      — gifted-charts grouped BarChart (spend + distance per month, one shared
                               y-axis, matching the original), plus a hand-rolled legend row
   FuelPriceTrendChart.tsx       — gifted-charts LineChart, terracotta
+
+src/utils/platformGuards.ts    — assertFileSystemSupported(): expo-file-system's new File/Directory/
+                              Paths API has no web implementation at all (throws an unhelpful raw
+                              error there); this turns that into an actionable message, called at
+                              the top of every exportService/backupService function
 
 All 4 chart components take `monthly: MonthlyBreakdownEntry[]` (always the context's all-time
 `monthlyBreakdown`, never re-scoped by the Dashboard's month selector — confirmed by testing that
@@ -91,6 +103,12 @@ Destructive actions (currently just delete) use the custom `src/components/Confi
 
 `avgPricePerLiter` is computed from **all** entries in a scope (spend ÷ liters), while `avgMileageKmpl` and `avgCostPerKm` are computed only from entries that have a computed distance (i.e., excluding the very first entry, or any entry whose odometer was rejected before the validation fix). This asymmetry is preserved for numeric consistency with the original prototype's dashboard.
 
+## Export/backup/restore
+
+`expo-file-system`'s new `File`/`Directory`/`Paths` API (`.write()`, `.text()`, `.create()`, `File.pickFileAsync()`) has no web implementation — confirmed via a runtime warning ("expo-file-system is not supported on web") and an internal error otherwise surfaced to the user. `assertFileSystemSupported()` (in `platformGuards.ts`) turns that into a clear message. This means CSV export and JSON backup/restore could not be verified end-to-end in this session (no Android device available) — they're written directly against the documented v57 API and follow the same error-handling patterns already proven elsewhere (try/catch + inline error), but deserve an on-device Expo Go check before being relied on.
+
+Restore is destructive: it replaces every entry currently in the DB with the backup's entries. `FuelEntriesContext.importBackup` validates the *entire* backup against an in-memory accumulator first — nothing is deleted from the DB until the whole file passes — so a corrupt or hand-edited backup can't leave the app with less data than it started with.
+
 ## Status
 
-Phase 4 complete: all 4 dashboard charts built with `react-native-gifted-charts` (+ `react-native-svg` + `expo-linear-gradient`, the last needed at runtime for gradient fills though not an obvious direct dependency) and verified end-to-end against a 2-month, 4-entry fixture — mileage trend, last-2-months comparison, grouped spend/distance bars, and fuel price trend all rendering correct values, and confirmed to stay all-time regardless of the KPI scope selector. See `Project_Plan.md` for what's next (Phase 5: export, backup, settings).
+All 5 phases complete. Full CRUD, the odometer-sequencing fix, the analytics engine, all 4 dashboard charts, and CSV export/JSON backup/restore are built and wired to real SQLite data. Everything except export/backup/restore (see above) was verified end-to-end via `expo start --web`. Remaining before a real release: on-device (Expo Go) verification of export/backup/restore and native date-picker/`Alert.alert` paths, and custom app icon/splash branding (currently Expo's default template assets). Backlog beyond v1: multi-vehicle support, predicted-refuel alerts, maintenance log (see `Project_Plan.md`).

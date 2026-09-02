@@ -52,6 +52,7 @@ interface FuelEntriesContextValue {
   addEntry: (input: FuelEntryInput) => Promise<void>;
   updateEntry: (id: number, input: FuelEntryInput) => Promise<void>;
   deleteEntry: (id: number) => Promise<void>;
+  importBackup: (entries: FuelEntryInput[]) => Promise<void>;
 }
 
 const FuelEntriesContext = createContext<FuelEntriesContextValue | null>(null);
@@ -98,6 +99,39 @@ export function FuelEntriesProvider({ children }: { children: React.ReactNode })
     dispatch({ type: 'REMOVED', id });
   }, []);
 
+  // Restoring a backup replaces all existing entries. Every entry is
+  // validated up front, against an in-memory accumulator only — nothing is
+  // deleted or written until the whole backup is confirmed valid, so a bad
+  // backup file can't leave the DB half-cleared. Validation mirrors a manual
+  // add/edit, since a hand-edited or foreign JSON file is exactly the kind
+  // of external input worth checking at this boundary.
+  const importBackup = useCallback(
+    async (entries: FuelEntryInput[]) => {
+      const sorted = [...entries].sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0));
+
+      const provisional: FuelEntry[] = [];
+      for (const input of sorted) {
+        const result = validateFuelEntryInput(input, provisional);
+        if (!result.valid) {
+          throw new Error(`Backup entry for ${input.date} is invalid: ${result.error}`);
+        }
+        provisional.push({ id: -1, createdAt: new Date().toISOString(), ...input });
+      }
+
+      for (const existing of state.entries) {
+        await fuelEntryRepository.remove(existing.id);
+      }
+
+      const created: FuelEntry[] = [];
+      for (const input of sorted) {
+        created.push(await fuelEntryRepository.create(input));
+      }
+
+      dispatch({ type: 'LOADED', entries: created });
+    },
+    [state.entries]
+  );
+
   const enrichedEntries = useMemo(() => computeEnrichedEntries(state.entries), [state.entries]);
   const historyEntries = useMemo(() => sortHistoryDescending(enrichedEntries), [enrichedEntries]);
   const monthlyBreakdown = useMemo(() => computeMonthlyBreakdown(enrichedEntries), [enrichedEntries]);
@@ -120,6 +154,7 @@ export function FuelEntriesProvider({ children }: { children: React.ReactNode })
       addEntry,
       updateEntry,
       deleteEntry,
+      importBackup,
     }),
     [
       state.loading,
@@ -133,6 +168,7 @@ export function FuelEntriesProvider({ children }: { children: React.ReactNode })
       addEntry,
       updateEntry,
       deleteEntry,
+      importBackup,
     ]
   );
 
