@@ -13,9 +13,7 @@
       "package": "com.tswastik.mileagetracker",
       "adaptiveIcon": {
         "backgroundColor": "#F9F8F6",
-        "foregroundImage": "./assets/android-icon-foreground.png",
-        "backgroundImage": "./assets/android-icon-background.png",
-        "monochromeImage": "./assets/android-icon-monochrome.png"
+        "foregroundImage": "./assets/android-icon-foreground.png"
       },
       "predictiveBackGestureEnabled": false
     },
@@ -27,7 +25,14 @@
       "@react-native-community/datetimepicker",
       "expo-sharing",
       "expo-font",
-      "expo-splash-screen"
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/splash-icon.png",
+          "resizeMode": "contain",
+          "backgroundColor": "#F9F8F6"
+        }
+      ]
     ]
   }
 }
