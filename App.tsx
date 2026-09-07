@@ -17,14 +17,23 @@ import { colors } from './src/constants/theme';
 SplashScreen.preventAutoHideAsync().catch(() => {});
 
 // Shown while fonts/DB are loading, in place of the app's real screens.
+// Its onLayout hides the native splash screen as soon as THIS has painted a
+// frame -- get that wrong (e.g. hide on the final app's layout instead) and
+// the opaque native splash stays up for the entire loading window, this
+// screen renders invisibly underneath it, and the app appears to jump
+// straight from Expo Go's own splash to the fully-loaded Dashboard.
 // Custom fonts aren't guaranteed loaded yet at this point, so this uses the
 // system default font rather than `fonts.*` from the theme. This is also
 // the only branded loading screen visible when testing via Expo Go, since
 // Expo Go always shows its own native icon/splash and ignores app.json's
 // icon/splash config (that only applies to a real native build).
 function LoadingScreen() {
+  const handleLayout = useCallback(() => {
+    SplashScreen.hideAsync().catch(() => {});
+  }, []);
+
   return (
-    <View style={styles.loadingContainer}>
+    <View style={styles.loadingContainer} onLayout={handleLayout}>
       {/* eslint-disable-next-line @typescript-eslint/no-require-imports */}
       <Image source={require('./assets/icon.png')} style={styles.loadingIcon} resizeMode="contain" />
       <Text style={styles.loadingTitle}>Mileage Tracker</Text>
@@ -49,18 +58,12 @@ export default function App() {
     );
   }, []);
 
-  const onLayoutRootView = useCallback(async () => {
-    if (fontsLoaded && dbReady) {
-      await SplashScreen.hideAsync();
-    }
-  }, [fontsLoaded, dbReady]);
-
   if (!fontsLoaded || !dbReady) {
     return <LoadingScreen />;
   }
 
   return (
-    <SafeAreaProvider onLayout={onLayoutRootView}>
+    <SafeAreaProvider>
       <FuelEntriesProvider>
         <NavigationContainer>
           <AppNavigator />
