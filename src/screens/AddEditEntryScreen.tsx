@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, TextInput, Pressable, StyleSheet, ScrollView } from 'react-native';
+import { View, Text, TextInput, Pressable, StyleSheet, ScrollView, KeyboardAvoidingView, Platform } from 'react-native';
 import { colors, fonts, radii, spacing } from '../constants/theme';
 import { VEHICLE_TYPE_ICON } from '../constants/vehicles';
 import { todayLocalISODate } from '../utils/dateFormat';
@@ -90,31 +90,33 @@ export default function AddEditEntryScreen({ route, navigation }: AddEditEntrySc
   };
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
-      {forVehicle && (
-        <Text style={styles.vehicleBadge}>
-          {VEHICLE_TYPE_ICON[forVehicle.type]} Logging for {forVehicle.name}
-        </Text>
-      )}
-      <DateField label="Date" value={date} onChange={setDate} />
-      <FormField label="Odometer (km)" value={odometerKm} onChangeText={setOdometerKm} placeholder="e.g. 12450" />
-      <FormField label="Liters" value={liters} onChangeText={setLiters} placeholder="e.g. 8.5" />
-      <FormField label="Total price (₹)" value={totalPriceInr} onChangeText={setTotalPriceInr} placeholder="e.g. 850" />
-      <View style={styles.fieldContainer}>
-        <Text style={styles.label}>Station (optional)</Text>
-        <TextInput style={styles.input} value={station} onChangeText={setStation} placeholder="e.g. Indian Oil" placeholderTextColor={colors.textMuted} />
-      </View>
-      <View style={styles.fieldContainer}>
-        <Text style={styles.label}>Notes (optional)</Text>
-        <TextInput style={styles.input} value={notes} onChangeText={setNotes} placeholder="Anything worth remembering" placeholderTextColor={colors.textMuted} />
-      </View>
+    <KeyboardAvoidingView style={styles.container} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+      <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+        {forVehicle && (
+          <Text style={styles.vehicleBadge}>
+            {VEHICLE_TYPE_ICON[forVehicle.type]} Logging for {forVehicle.name}
+          </Text>
+        )}
+        <DateField label="Date" value={date} onChange={setDate} />
+        <FormField label="Odometer (km)" value={odometerKm} onChangeText={setOdometerKm} placeholder="e.g. 12450" />
+        <FormField label="Liters" value={liters} onChangeText={setLiters} placeholder="e.g. 8.5" />
+        <FormField label="Total price (₹)" value={totalPriceInr} onChangeText={setTotalPriceInr} placeholder="e.g. 850" />
+        <View style={styles.fieldContainer}>
+          <Text style={styles.label}>Station (optional)</Text>
+          <TextInput style={styles.input} value={station} onChangeText={setStation} placeholder="e.g. Indian Oil" placeholderTextColor={colors.textMuted} />
+        </View>
+        <View style={styles.fieldContainer}>
+          <Text style={styles.label}>Notes (optional)</Text>
+          <TextInput style={styles.input} value={notes} onChangeText={setNotes} placeholder="Anything worth remembering" placeholderTextColor={colors.textMuted} />
+        </View>
 
-      {error && <Text style={styles.error}>{error}</Text>}
+        {error && <Text style={styles.error}>{error}</Text>}
 
-      <Pressable style={[styles.submitButton, saving && styles.submitButtonDisabled]} onPress={handleSubmit} disabled={saving}>
-        <Text style={styles.submitButtonText}>{saving ? 'Saving…' : existing ? 'Update' : 'Save refuel'}</Text>
-      </Pressable>
-    </ScrollView>
+        <Pressable style={[styles.submitButton, saving && styles.submitButtonDisabled]} onPress={handleSubmit} disabled={saving}>
+          <Text style={styles.submitButtonText}>{saving ? 'Saving…' : existing ? 'Update' : 'Save refuel'}</Text>
+        </Pressable>
+      </ScrollView>
+    </KeyboardAvoidingView>
   );
 }
 
