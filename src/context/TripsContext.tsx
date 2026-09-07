@@ -16,7 +16,8 @@ type Action =
   | { type: 'TRIP_STARTED'; trip: Trip; checkpoint: TripCheckpoint }
   | { type: 'CHECKPOINT_ADDED'; checkpoint: TripCheckpoint }
   | { type: 'TRIP_CLOSED'; tripId: number; checkpoint: TripCheckpoint; closedAt: string }
-  | { type: 'TRIP_CANCELED'; tripId: number };
+  | { type: 'TRIP_CANCELED'; tripId: number }
+  | { type: 'TRIP_DELETED'; tripId: number };
 
 function reducer(state: State, action: Action): State {
   switch (action.type) {
@@ -44,6 +45,12 @@ function reducer(state: State, action: Action): State {
         trips: state.trips.filter((t) => t.id !== action.tripId),
         checkpoints: state.checkpoints.filter((c) => c.tripId !== action.tripId),
       };
+    case 'TRIP_DELETED':
+      return {
+        ...state,
+        trips: state.trips.filter((t) => t.id !== action.tripId),
+        checkpoints: state.checkpoints.filter((c) => c.tripId !== action.tripId),
+      };
     default:
       return state;
   }
@@ -60,6 +67,7 @@ interface TripsContextValue {
   addCheckpoint: (tripId: number, input: CheckpointInput) => Promise<void>;
   endTrip: (tripId: number, input: CheckpointInput) => Promise<void>;
   cancelTrip: (tripId: number) => Promise<void>;
+  deleteTrip: (tripId: number) => Promise<void>;
 }
 
 const TripsContext = createContext<TripsContextValue | null>(null);
@@ -161,6 +169,19 @@ export function TripsProvider({ children }: { children: React.ReactNode }) {
     [getCheckpoints]
   );
 
+  const deleteTrip = useCallback(
+    async (tripId: number) => {
+      const trip = state.trips.find((t) => t.id === tripId);
+      if (!trip || trip.status !== 'closed') {
+        throw new Error('Only a closed trip can be deleted — end or cancel it first.');
+      }
+      await tripCheckpointRepository.removeForTrip(tripId);
+      await tripRepository.remove(tripId);
+      dispatch({ type: 'TRIP_DELETED', tripId });
+    },
+    [state.trips]
+  );
+
   const value = useMemo<TripsContextValue>(
     () => ({
       loading: state.loading,
@@ -173,8 +194,21 @@ export function TripsProvider({ children }: { children: React.ReactNode }) {
       addCheckpoint,
       endTrip,
       cancelTrip,
+      deleteTrip,
     }),
-    [state.loading, vehicleTrips, activeTrip, closedTrips, getCheckpoints, getSummary, startTrip, addCheckpoint, endTrip, cancelTrip]
+    [
+      state.loading,
+      vehicleTrips,
+      activeTrip,
+      closedTrips,
+      getCheckpoints,
+      getSummary,
+      startTrip,
+      addCheckpoint,
+      endTrip,
+      cancelTrip,
+      deleteTrip,
+    ]
   );
 
   return <TripsContext.Provider value={value}>{children}</TripsContext.Provider>;

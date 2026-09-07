@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Modal, View, Text, TextInput, Pressable, StyleSheet } from 'react-native';
+import { Modal, View, Text, TextInput, Pressable, StyleSheet, KeyboardAvoidingView, ScrollView, Platform } from 'react-native';
 import { colors, fonts, radii, spacing } from '../constants/theme';
 import { FUEL_TYPE_ICON, FUEL_TYPE_LABEL } from '../constants/fuel';
 import { nowISODateTime } from '../utils/dateFormat';
@@ -62,46 +62,51 @@ export default function StartTripDialog({ visible, onClose }: Props) {
 
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={handleCancel}>
-      <View style={styles.backdrop}>
+      <KeyboardAvoidingView
+        style={styles.backdrop}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      >
         <View style={styles.card}>
-          <Text style={styles.title}>Start a trip</Text>
+          <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={styles.scrollContent}>
+            <Text style={styles.title}>Start a trip</Text>
 
-          <Text style={styles.label}>Fuel type</Text>
-          <View style={styles.typeRow}>
-            {FUEL_TYPES.map((t) => (
-              <Pressable
-                key={t}
-                style={[styles.typeOption, fuelType === t && styles.typeOptionActive]}
-                onPress={() => setFuelType(t)}
-              >
-                <Text style={styles.typeIcon}>{FUEL_TYPE_ICON[t]}</Text>
-                <Text style={[styles.typeLabel, fuelType === t && styles.typeLabelActive]}>{FUEL_TYPE_LABEL[t]}</Text>
-              </Pressable>
-            ))}
-          </View>
+            <Text style={styles.label}>Fuel type</Text>
+            <View style={styles.typeRow}>
+              {FUEL_TYPES.map((t) => (
+                <Pressable
+                  key={t}
+                  style={[styles.typeOption, fuelType === t && styles.typeOptionActive]}
+                  onPress={() => setFuelType(t)}
+                >
+                  <Text style={styles.typeIcon}>{FUEL_TYPE_ICON[t]}</Text>
+                  <Text style={[styles.typeLabel, fuelType === t && styles.typeLabelActive]}>{FUEL_TYPE_LABEL[t]}</Text>
+                </Pressable>
+              ))}
+            </View>
 
-          <DateTimeField label="Start date & time" value={dateTime} onChange={setDateTime} />
+            <DateTimeField label="Start date & time" value={dateTime} onChange={setDateTime} />
 
-          <Text style={styles.label}>Starting odometer (km)</Text>
-          <TextInput
-            style={styles.input}
-            value={odometerKm}
-            onChangeText={setOdometerKm}
-            placeholder="e.g. 10200"
-            placeholderTextColor={colors.textMuted}
-            keyboardType="decimal-pad"
-          />
+            <Text style={styles.label}>Starting odometer (km)</Text>
+            <TextInput
+              style={styles.input}
+              value={odometerKm}
+              onChangeText={setOdometerKm}
+              placeholder="e.g. 10200"
+              placeholderTextColor={colors.textMuted}
+              keyboardType="decimal-pad"
+            />
 
-          <Text style={styles.label}>Starting location (optional)</Text>
-          <TextInput
-            style={styles.input}
-            value={location}
-            onChangeText={setLocation}
-            placeholder="e.g. Home"
-            placeholderTextColor={colors.textMuted}
-          />
+            <Text style={styles.label}>Starting location (optional)</Text>
+            <TextInput
+              style={styles.input}
+              value={location}
+              onChangeText={setLocation}
+              placeholder="e.g. Home"
+              placeholderTextColor={colors.textMuted}
+            />
 
-          {error && <Text style={styles.error}>{error}</Text>}
+            {error && <Text style={styles.error}>{error}</Text>}
+          </ScrollView>
 
           <View style={styles.actions}>
             <Pressable style={[styles.button, styles.cancelButton]} onPress={handleCancel} disabled={saving}>
@@ -112,7 +117,7 @@ export default function StartTripDialog({ visible, onClose }: Props) {
             </Pressable>
           </View>
         </View>
-      </View>
+      </KeyboardAvoidingView>
     </Modal>
   );
 }
@@ -131,7 +136,11 @@ const styles = StyleSheet.create({
     maxHeight: '85%',
     backgroundColor: colors.surface,
     borderRadius: radii.md,
-    padding: spacing.lg,
+    paddingHorizontal: spacing.lg,
+    paddingTop: spacing.lg,
+  },
+  scrollContent: {
+    paddingBottom: spacing.sm,
   },
   title: {
     fontFamily: fonts.bodySemiBold,
@@ -197,7 +206,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'flex-end',
     gap: spacing.md,
-    marginTop: spacing.md,
+    paddingTop: spacing.md,
+    paddingBottom: spacing.lg,
   },
   button: {
     paddingHorizontal: spacing.md,

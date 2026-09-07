@@ -21,10 +21,11 @@ const KIND_LABEL: Record<CheckpointKind, string> = {
 
 export default function TripDetailScreen({ route, navigation }: TripDetailScreenProps) {
   const { tripId } = route.params;
-  const { vehicleTrips, getCheckpoints, getSummary, cancelTrip } = useTrips();
+  const { vehicleTrips, getCheckpoints, getSummary, cancelTrip, deleteTrip } = useTrips();
   const [showAddStop, setShowAddStop] = useState(false);
   const [showEndTrip, setShowEndTrip] = useState(false);
   const [showCancelConfirm, setShowCancelConfirm] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const trip = vehicleTrips.find((t) => t.id === tripId);
@@ -33,7 +34,7 @@ export default function TripDetailScreen({ route, navigation }: TripDetailScreen
 
   if (!trip) {
     return (
-      <SafeAreaView style={styles.safeArea} edges={['top']}>
+      <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
         <View style={styles.content}>
           <Text style={styles.subtitle}>This trip isn't available.</Text>
         </View>
@@ -63,8 +64,18 @@ export default function TripDetailScreen({ route, navigation }: TripDetailScreen
     }
   };
 
+  const handleDeleteTrip = async () => {
+    setError(null);
+    try {
+      await deleteTrip(tripId);
+      navigation.goBack();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Could not delete this trip.');
+    }
+  };
+
   return (
-    <SafeAreaView style={styles.safeArea} edges={['top']}>
+    <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
       <ScrollView style={styles.container} contentContainerStyle={styles.content}>
         <View style={styles.headerRow}>
           <Text style={styles.fuelBadge}>
@@ -105,6 +116,14 @@ export default function TripDetailScreen({ route, navigation }: TripDetailScreen
             )}
           </View>
         )}
+
+        {!isActive && (
+          <View style={styles.actions}>
+            <Pressable style={styles.deleteLink} onPress={() => setShowDeleteConfirm(true)}>
+              <Text style={styles.deleteLinkText}>Delete this trip</Text>
+            </Pressable>
+          </View>
+        )}
       </ScrollView>
 
       <AddCheckpointDialog visible={showAddStop} tripId={tripId} isEnding={false} onClose={() => setShowAddStop(false)} />
@@ -118,6 +137,17 @@ export default function TripDetailScreen({ route, navigation }: TripDetailScreen
         onConfirm={() => {
           setShowCancelConfirm(false);
           handleCancelTrip();
+        }}
+      />
+      <ConfirmDialog
+        visible={showDeleteConfirm}
+        title="Delete this trip?"
+        message="This permanently removes the trip and every stop recorded on it. It can't be undone."
+        confirmLabel="Delete trip"
+        onCancel={() => setShowDeleteConfirm(false)}
+        onConfirm={() => {
+          setShowDeleteConfirm(false);
+          handleDeleteTrip();
         }}
       />
     </SafeAreaView>
@@ -295,5 +325,14 @@ const styles = StyleSheet.create({
     fontFamily: fonts.bodyMedium,
     fontSize: 12,
     color: colors.textMuted,
+  },
+  deleteLink: {
+    alignItems: 'center',
+    paddingVertical: spacing.sm,
+  },
+  deleteLinkText: {
+    fontFamily: fonts.bodyMedium,
+    fontSize: 12,
+    color: colors.danger,
   },
 });

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Modal, View, Text, TextInput, Pressable, StyleSheet } from 'react-native';
+import { Modal, View, Text, TextInput, Pressable, StyleSheet, KeyboardAvoidingView, ScrollView, Platform } from 'react-native';
 import { colors, fonts, radii, spacing } from '../constants/theme';
 import { nowISODateTime } from '../utils/dateFormat';
 import { useTrips } from '../context/TripsContext';
@@ -91,57 +91,62 @@ export default function AddCheckpointDialog({ visible, tripId, isEnding, onClose
 
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={handleCancel}>
-      <View style={styles.backdrop}>
+      <KeyboardAvoidingView
+        style={styles.backdrop}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      >
         <View style={styles.card}>
-          <Text style={styles.title}>{isEnding ? 'End trip' : 'Add a stop'}</Text>
-          {isEnding && (
-            <Text style={styles.subtitle}>
-              Top up the fuel to the same level as when you started, and record what that took.
-            </Text>
-          )}
+          <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={styles.scrollContent}>
+            <Text style={styles.title}>{isEnding ? 'End trip' : 'Add a stop'}</Text>
+            {isEnding && (
+              <Text style={styles.subtitle}>
+                Top up the fuel to the same level as when you started, and record what that took.
+              </Text>
+            )}
 
-          <DateTimeField label="Date & time" value={dateTime} onChange={setDateTime} />
+            <DateTimeField label="Date & time" value={dateTime} onChange={setDateTime} />
 
-          <Text style={styles.label}>Odometer (km)</Text>
-          <TextInput
-            style={styles.input}
-            value={odometerKm}
-            onChangeText={setOdometerKm}
-            placeholder="e.g. 10450"
-            placeholderTextColor={colors.textMuted}
-            keyboardType="decimal-pad"
-          />
+            <Text style={styles.label}>Odometer (km)</Text>
+            <TextInput
+              style={styles.input}
+              value={odometerKm}
+              onChangeText={setOdometerKm}
+              placeholder="e.g. 10450"
+              placeholderTextColor={colors.textMuted}
+              keyboardType="decimal-pad"
+            />
 
-          <Text style={styles.label}>Location {isEnding ? '(optional)' : ''}</Text>
-          <TextInput
-            style={styles.input}
-            value={location}
-            onChangeText={setLocation}
-            placeholder="e.g. City B"
-            placeholderTextColor={colors.textMuted}
-          />
+            <Text style={styles.label}>Location {isEnding ? '(optional)' : ''}</Text>
+            <TextInput
+              style={styles.input}
+              value={location}
+              onChangeText={setLocation}
+              placeholder="e.g. City B"
+              placeholderTextColor={colors.textMuted}
+            />
 
-          <Text style={styles.label}>Liters {isEnding ? '' : '(optional)'}</Text>
-          <TextInput
-            style={styles.input}
-            value={liters}
-            onChangeText={setLiters}
-            placeholder="e.g. 8.5"
-            placeholderTextColor={colors.textMuted}
-            keyboardType="decimal-pad"
-          />
+            <Text style={styles.label}>Liters {isEnding ? '' : '(optional)'}</Text>
+            <TextInput
+              style={styles.input}
+              value={liters}
+              onChangeText={setLiters}
+              placeholder="e.g. 8.5"
+              placeholderTextColor={colors.textMuted}
+              keyboardType="decimal-pad"
+            />
 
-          <Text style={styles.label}>Cost (₹) {isEnding ? '' : '(optional)'}</Text>
-          <TextInput
-            style={styles.input}
-            value={costInr}
-            onChangeText={setCostInr}
-            placeholder="e.g. 850"
-            placeholderTextColor={colors.textMuted}
-            keyboardType="decimal-pad"
-          />
+            <Text style={styles.label}>Cost (₹) {isEnding ? '' : '(optional)'}</Text>
+            <TextInput
+              style={styles.input}
+              value={costInr}
+              onChangeText={setCostInr}
+              placeholder="e.g. 850"
+              placeholderTextColor={colors.textMuted}
+              keyboardType="decimal-pad"
+            />
 
-          {error && <Text style={styles.error}>{error}</Text>}
+            {error && <Text style={styles.error}>{error}</Text>}
+          </ScrollView>
 
           <View style={styles.actions}>
             <Pressable style={[styles.button, styles.cancelButton]} onPress={handleCancel} disabled={saving}>
@@ -156,7 +161,7 @@ export default function AddCheckpointDialog({ visible, tripId, isEnding, onClose
             </Pressable>
           </View>
         </View>
-      </View>
+      </KeyboardAvoidingView>
     </Modal>
   );
 }
@@ -175,7 +180,11 @@ const styles = StyleSheet.create({
     maxHeight: '85%',
     backgroundColor: colors.surface,
     borderRadius: radii.md,
-    padding: spacing.lg,
+    paddingHorizontal: spacing.lg,
+    paddingTop: spacing.lg,
+  },
+  scrollContent: {
+    paddingBottom: spacing.sm,
   },
   title: {
     fontFamily: fonts.bodySemiBold,
@@ -218,7 +227,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'flex-end',
     gap: spacing.md,
-    marginTop: spacing.sm,
+    paddingTop: spacing.sm,
+    paddingBottom: spacing.lg,
   },
   button: {
     paddingHorizontal: spacing.md,
