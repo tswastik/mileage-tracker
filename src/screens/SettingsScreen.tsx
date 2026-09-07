@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { View, Text, Pressable, StyleSheet, ScrollView, ActivityIndicator } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { colors, fonts, radii, spacing } from '../constants/theme';
 import { useFuelEntries } from '../context/FuelEntriesContext';
 import { exportEntriesAsCsv } from '../export/exportService';
@@ -44,54 +45,56 @@ export default function SettingsScreen() {
   };
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
-      <Text style={styles.title}>Settings</Text>
+    <SafeAreaView style={styles.safeArea} edges={['top']}>
+      <ScrollView style={styles.container} contentContainerStyle={styles.content}>
+        <Text style={styles.title}>Settings</Text>
 
-      <View style={styles.card}>
-        <Text style={styles.sectionTitle}>Export</Text>
-        <Text style={styles.sectionSubtitle}>Download your fuel log as a spreadsheet.</Text>
-        <ActionButton
-          label="Export as CSV"
-          busy={busy === 'csv'}
-          onPress={() => runAction('csv', () => exportEntriesAsCsv(historyEntries))}
+        <View style={styles.card}>
+          <Text style={styles.sectionTitle}>Export</Text>
+          <Text style={styles.sectionSubtitle}>Download your fuel log as a spreadsheet.</Text>
+          <ActionButton
+            label="Export as CSV"
+            busy={busy === 'csv'}
+            onPress={() => runAction('csv', () => exportEntriesAsCsv(historyEntries))}
+          />
+        </View>
+
+        <View style={styles.card}>
+          <Text style={styles.sectionTitle}>Backup</Text>
+          <Text style={styles.sectionSubtitle}>
+            This app stores data only on this device. Back up regularly so you don't lose it on reinstall or a new
+            phone.
+          </Text>
+          <ActionButton
+            label="Backup data"
+            busy={busy === 'backup'}
+            onPress={() => runAction('backup', () => writeAndShareBackup(entries))}
+          />
+          <ActionButton label="Restore from backup" busy={busy === 'restore'} onPress={handleRestore} />
+        </View>
+
+        {error && <Text style={styles.error}>{error}</Text>}
+
+        <View style={styles.card}>
+          <Text style={styles.sectionTitle}>About</Text>
+          <Row label="App" value="Mileage Tracker" />
+          <Row label="Refuels logged" value={String(entries.length)} />
+        </View>
+
+        <ConfirmDialog
+          visible={pendingImport !== null}
+          title="Restore from backup?"
+          message={
+            pendingImport
+              ? `This replaces all ${entries.length} entries currently on this device with ${pendingImport.count} entries from the backup. This can't be undone.`
+              : ''
+          }
+          confirmLabel="Restore"
+          onCancel={() => setPendingImport(null)}
+          onConfirm={confirmRestore}
         />
-      </View>
-
-      <View style={styles.card}>
-        <Text style={styles.sectionTitle}>Backup</Text>
-        <Text style={styles.sectionSubtitle}>
-          This app stores data only on this device. Back up regularly so you don't lose it on reinstall or a new
-          phone.
-        </Text>
-        <ActionButton
-          label="Backup data"
-          busy={busy === 'backup'}
-          onPress={() => runAction('backup', () => writeAndShareBackup(entries))}
-        />
-        <ActionButton label="Restore from backup" busy={busy === 'restore'} onPress={handleRestore} />
-      </View>
-
-      {error && <Text style={styles.error}>{error}</Text>}
-
-      <View style={styles.card}>
-        <Text style={styles.sectionTitle}>About</Text>
-        <Row label="App" value="Mileage Tracker" />
-        <Row label="Refuels logged" value={String(entries.length)} />
-      </View>
-
-      <ConfirmDialog
-        visible={pendingImport !== null}
-        title="Restore from backup?"
-        message={
-          pendingImport
-            ? `This replaces all ${entries.length} entries currently on this device with ${pendingImport.count} entries from the backup. This can't be undone.`
-            : ''
-        }
-        confirmLabel="Restore"
-        onCancel={() => setPendingImport(null)}
-        onConfirm={confirmRestore}
-      />
-    </ScrollView>
+      </ScrollView>
+    </SafeAreaView>
   );
 }
 
@@ -113,6 +116,10 @@ function Row({ label, value }: { label: string; value: string }) {
 }
 
 const styles = StyleSheet.create({
+  safeArea: {
+    flex: 1,
+    backgroundColor: colors.background,
+  },
   container: {
     flex: 1,
     backgroundColor: colors.background,

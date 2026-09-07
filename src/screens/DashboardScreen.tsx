@@ -1,5 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { View, Text, Pressable, StyleSheet, ScrollView } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { colors, fonts, radii, spacing } from '../constants/theme';
 import { kpiColors } from '../constants/analytics';
 import { formatInr, formatNum } from '../utils/format';
@@ -29,31 +30,37 @@ export default function DashboardScreen({ navigation }: DashboardTabScreenProps)
   ];
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
-      <View style={styles.header}>
-        <Text style={styles.title}>Dashboard</Text>
-        <Pressable style={styles.addButton} onPress={() => navigation.navigate('AddEditEntry')}>
-          <Text style={styles.addButtonText}>+ Log refuel</Text>
-        </Pressable>
-      </View>
+    <SafeAreaView style={styles.safeArea} edges={['top']}>
+      <ScrollView style={styles.container} contentContainerStyle={styles.content}>
+        <View style={styles.header}>
+          <Text style={styles.title}>Dashboard</Text>
+          <Pressable style={styles.addButton} onPress={() => navigation.navigate('AddEditEntry')}>
+            <Text style={styles.addButtonText}>+ Log refuel</Text>
+          </Pressable>
+        </View>
 
-      <ScopeSelector months={distinctMonths} selected={selectedMonth} onChange={setSelectedMonth} />
+        <ScopeSelector months={distinctMonths} selected={selectedMonth} onChange={setSelectedMonth} />
 
-      <View style={styles.grid}>
-        {tiles.map((tile) => (
-          <KpiTile key={tile.label} {...tile} />
-        ))}
-      </View>
+        <View style={styles.grid}>
+          {tiles.map((tile) => (
+            <KpiTile key={tile.label} {...tile} />
+          ))}
+        </View>
 
-      <MileageTrendChart monthly={monthlyBreakdown} />
-      <LastTwoMonthsCard monthly={monthlyBreakdown} />
-      <MonthComparisonChart monthly={monthlyBreakdown} />
-      <FuelPriceTrendChart monthly={monthlyBreakdown} />
-    </ScrollView>
+        <MileageTrendChart monthly={monthlyBreakdown} />
+        <LastTwoMonthsCard monthly={monthlyBreakdown} />
+        <MonthComparisonChart monthly={monthlyBreakdown} />
+        <FuelPriceTrendChart monthly={monthlyBreakdown} />
+      </ScrollView>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
+  safeArea: {
+    flex: 1,
+    backgroundColor: colors.background,
+  },
   container: {
     flex: 1,
     backgroundColor: colors.background,

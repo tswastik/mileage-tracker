@@ -11,6 +11,22 @@ Reading the prototype in full surfaced three bugs fixed in this rebuild (not por
 
 Every other formula/behavior is reproduced exactly, including a deliberate-looking asymmetry in the aggregate math: `avgPricePerLiter` uses all entries in scope, while `avgMileageKmpl`/`avgCostPerKm` use only entries that have a computed distance.
 
+## Mileage Ccalculation Formula
+
+Subtract your initial odometer reading from your final reading to get the total distance traveled, then use the formula below:
+
+Mileage (km/L) = Total Distance Traveled (km) ÷ Petrol Refilled (Liters)
+
+Step-by-Step Mathematical Example:
+
+Initial Odometer Reading: 12,500 km
+Final Odometer Reading  : 12,650 km
+Total Distance Traveled :    150 km (12,650 minus 12,500)
+
+Petrol Refilled to Top Up 3.75 Liters
+
+Final Calculation : 150 km ÷ 3.75 Liters = 40 km/L
+
 ## Key decisions
 
 - **Stack**: Expo SDK 57, TypeScript strict, React Navigation (native-stack root + bottom-tabs), React Context + `useReducer` for state, no backend.
@@ -58,3 +74,9 @@ Phase 4 notes: charting library is `react-native-gifted-charts` (+ `react-native
 Phase 5 notes: CSV export (`exportService.ts`) and JSON backup/restore (`backupService.ts`, versioned `{version, exportedAt, entries}` envelope) use `expo-file-system`'s new `File`/`Directory`/`Paths` API — confirmed via `docs.expo.dev/versions/v57.0.0` that `.write()`/`.text()`/`.create()`/`File.pickFileAsync()` are the correct current method names. **This API has no web implementation at all** (unlike `expo-sqlite`, which does) — it throws an unhelpful internal error (`this.validatePath is not a function`) on web, so a small `assertFileSystemSupported()` guard now turns that into a clear "needs a phone or emulator" message instead. This is the one Phase-5 area that genuinely could not be verified end-to-end in this session (no Android device was available) — the code is written directly against the documented API and follows the same patterns already proven working (try/catch + inline error, `Sharing.isAvailableAsync()` guard), but an on-device Expo Go check of all three actions (export, backup, restore) is still worth doing before relying on it. Restore is destructive (replaces all entries) and validates the entire backup up front, before deleting anything, so a bad file can't leave the DB half-cleared.
 
 App icon/splash branding was left at Expo's default template assets — treated as deferred polish (matching how Remindly's own branding pass came after its core functionality, not during it), not something this session did. Revisit if/when the app is ready for a real device build.
+
+## On-device Android verification (post-Phase-5)
+
+Tested live on a physical Android phone via Expo Go. Found and fixed one real bug: the Dashboard, History, and Settings screens all draw their own header (title + "+ Log refuel" button) with `headerShown: false` on both the tab and root navigators, so nothing accounted for the status bar inset — the header, and critically the "+ Log refuel" button, rendered underneath/behind the status bar and was unreliable to tap. Fixed by wrapping each of those three screens' root element in `SafeAreaView` (`react-native-safe-area-context`, `edges={['top']}`) instead of a plain `View`/`ScrollView` — content now starts below the status bar, which itself is untouched. `AddEditEntryScreen` never had this problem since it's presented with a real native-stack header, which already insets correctly. Confirmed fixed on-device after the change.
+
+Also confirmed working on-device during this pass: navigation between all three tabs, the "+ Log refuel" button (now reliably tappable), and the overall look and feel. Export/backup/restore, the native date picker, and `Alert.alert` paths (see Phase 5 notes above) still haven't been explicitly re-confirmed on this device — worth a follow-up pass.

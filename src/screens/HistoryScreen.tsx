@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { View, Text, FlatList, Pressable, StyleSheet } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { colors, fonts, radii, spacing } from '../constants/theme';
 import { useFuelEntries } from '../context/FuelEntriesContext';
 import HistoryRow from '../components/HistoryRow';
@@ -19,7 +20,7 @@ export default function HistoryScreen({ navigation }: HistoryTabScreenProps) {
   };
 
   return (
-    <View style={styles.container}>
+    <SafeAreaView style={styles.container} edges={['top']}>
       <View style={styles.header}>
         <Text style={styles.title}>History</Text>
         <Pressable style={styles.addButton} onPress={() => navigation.navigate('AddEditEntry')}>
@@ -54,7 +55,7 @@ export default function HistoryScreen({ navigation }: HistoryTabScreenProps) {
         onCancel={() => setPendingDelete(null)}
         onConfirm={confirmDelete}
       />
-    </View>
+    </SafeAreaView>
   );
 }
 
