@@ -35,7 +35,7 @@ Final Calculation : 150 km ÷ 3.75 Liters = 40 km/L
 - **Charts**: `react-native-gifted-charts` + `react-native-svg` (SVG-only, ships inside Expo Go, no custom dev client needed).
 - **Fonts**: Work Sans (headings/numbers) + IBM Plex Sans (body) via `@expo-google-fonts/*`.
 - **Theme**: centralized tokens in `src/constants/theme.ts` — bone white `#F9F8F6`, forest green `#2E5339`, terracotta `#C05746`, blue `#3D5A80`.
-- **Scope for v1**: single vehicle, INR/km/L only. CSV export + JSON backup/restore in scope. Multi-vehicle, predicted-refuel alerts, maintenance log stay backlog.
+- **Scope for v1**: single vehicle, INR/km/L only. CSV export + JSON backup/restore in scope. Multi-vehicle, predicted-refuel alerts, maintenance log stay backlog. (Multi-vehicle moved out of backlog into Phase 6 — see below.)
 
 ## Odometer-sequencing fix
 
@@ -66,6 +66,10 @@ Update: `expo-sqlite`'s web target actually works — it just needs `metro.confi
 - [x] Phase 3 — Analytics + Dashboard KPIs
 - [x] Phase 4 — Charts
 - [x] Phase 5 — Export, backup, settings, polish
+- [x] Phase 6 — Multiple vehicles
+- [x] Phase 7 — Fuel cost calculator
+
+Phase 6/7 verification: confirmed end-to-end via `expo start --web` — the migration correctly created a default "My Vehicle" on an existing (pre-vehicle-support) database with no data loss; adding a second vehicle ("Activa", two-wheeler) and logging an entry with a *lower* odometer than the first vehicle's was accepted without triggering the odometer-sequencing rejection, proving entries are properly scoped per vehicle end to end (History, KPIs, and charts all confirmed isolated per vehicle); deleting an empty vehicle worked and correctly fell back to selecting another vehicle; deleting a vehicle with entries is correctly blocked (no delete control shown). The Fuel Cost Calculator was checked against the exact worked example added above (150 km ÷ 40 km/L → 3.75 L → ₹375 at ₹100/L) and matched precisely. Backup/restore's new v2 format (with the v1-backward-compatibility path) could not be exercised on web, same `expo-file-system`-has-no-web-implementation limitation as Phase 5 — still needs an on-device check, and this time it's particularly important since it's a real schema migration running against this device's actual previously-logged data.
 
 Small deliberate deviation from the original in Phase 3: the "Scope" KPI tile shows a formatted month label (e.g. "Sep 2026") instead of the original's raw "YYYY-MM" string — a display-only polish, not a calculation change, so it doesn't affect the numeric-parity goal.
 
@@ -79,4 +83,29 @@ App icon/splash branding was left at Expo's default template assets — treated 
 
 Tested live on a physical Android phone via Expo Go. Found and fixed one real bug: the Dashboard, History, and Settings screens all draw their own header (title + "+ Log refuel" button) with `headerShown: false` on both the tab and root navigators, so nothing accounted for the status bar inset — the header, and critically the "+ Log refuel" button, rendered underneath/behind the status bar and was unreliable to tap. Fixed by wrapping each of those three screens' root element in `SafeAreaView` (`react-native-safe-area-context`, `edges={['top']}`) instead of a plain `View`/`ScrollView` — content now starts below the status bar, which itself is untouched. `AddEditEntryScreen` never had this problem since it's presented with a real native-stack header, which already insets correctly. Confirmed fixed on-device after the change.
 
-Also confirmed working on-device during this pass: navigation between all three tabs, the "+ Log refuel" button (now reliably tappable), and the overall look and feel. Export/backup/restore, the native date picker, and `Alert.alert` paths (see Phase 5 notes above) still haven't been explicitly re-confirmed on this device — worth a follow-up pass.
+Also confirmed working on-device during this pass: navigation between all three tabs, the "+ Log refuel" button (now reliably tappable), and the overall look and feel. Export/backup/restore, the native date picker, and `Alert.alert` paths (see Phase 5 notes above) still haven't been explicitly re-confirmed on this device — worth a follow-up pass. Export and backup/restore were separately confirmed working on-device before Phase 6 started.
+
+## Phase 6: multiple vehicles
+
+**Use case**: a user with, say, a two-wheeler and a four-wheeler switches between them at the top of the Dashboard/History screens, and every number — KPIs, charts, history — reflects only the selected vehicle's entries.
+
+**Why this needs care, not just a new column**: the odometer-sequencing validation and the whole mileage engine (`computeEnrichedEntries`, distance = this odometer − previous odometer) assume one continuous, ever-increasing odometer sequence. Two vehicles have two completely independent odometer sequences. Mixing them would silently produce nonsense distances (e.g. a four-wheeler's 45,000 km reading "distance" from a two-wheeler's 12,000 km reading). So every place that currently operates on "all entries" must instead operate on "all entries for the selected vehicle" — this is the one rule this phase cannot get wrong.
+
+**Data model**:
+- New `vehicles` table: `id, name, type ('two_wheeler' | 'four_wheeler'), created_at`.
+- New `app_settings` key-value table (`key TEXT PRIMARY KEY, value TEXT`) — holds `selected_vehicle_id`, so the active vehicle survives an app restart. Generic on purpose, so future settings don't need their own bespoke table.
+- `fuel_entries` gains a `vehicle_id` column via `ALTER TABLE` (guarded by checking `PRAGMA table_info(fuel_entries)` first, so it only runs once, ever — no versioned migration framework here, same as the rest of this codebase).
+- **Migration for existing data** (this device already has real logged entries): on first boot with the new schema, if `vehicles` is empty, insert one default vehicle ("My Vehicle", four-wheeler) and backfill every `fuel_entries` row with `vehicle_id IS NULL` to that vehicle's id. Nothing existing is lost or reassigned incorrectly.
+
+**Scoping rule, applied everywhere**: `FuelEntriesContext` loads all vehicles and all entries (across every vehicle) once, then derives `vehicleEntries = entries.filter(e => e.vehicleId === selectedVehicleId)` — and *every* existing derived value (`enrichedEntries`, `historyEntries`, `monthlyBreakdown`, `distinctMonths`, `getSummary`) is recomputed from `vehicleEntries`, not `entries`. `addEntry`/`updateEntry` stamp the selected vehicle onto new entries and validate odometer sequencing only against that vehicle's own entries.
+
+**Vehicle management** (deliberately minimal for v1):
+- Switching and adding live in a `VehicleSelector` chip row at the top of Dashboard and History (mirrors `ScopeSelector`'s look) — a chip per vehicle (🏍️ two-wheeler / 🚗 four-wheeler) plus a "+ Add vehicle" chip opening a small modal (name + type).
+- Renaming is out of scope for v1 (not requested).
+- Deleting lives in Settings, and is only allowed for a vehicle with **zero** logged entries — no cascade-delete of a vehicle's history. This avoids a genuinely destructive, hard-to-undo operation for a feature that wasn't asked for; a vehicle logged in error can still be removed before anything's recorded against it.
+
+**Backup format bump**: a backup now needs to carry vehicle identity too, or a restored file would have entries with no vehicle to belong to. Bumps to `{version: 2, exportedAt, vehicles, entries}`. Restoring a `version: 1` file (from before this phase) still works — its entries get assigned to one freshly-created default vehicle, same as the on-device migration above. CSV export stays scoped to the currently-selected vehicle's history (it already reads from context, so this falls out automatically) — worth knowing that CSV and JSON-backup now have different scopes (one vehicle vs. everything) on purpose.
+
+## Phase 7: fuel cost calculator
+
+A fourth bottom tab, "Calculator" — a completely standalone screen with no database or context involvement, matching the ask: a one-time, throwaway calculation, not something that gets saved. Three inputs (Total Distance in km, Mileage in km/L, Fuel Price in ₹/L), a "Calculate Fuel Cost" button, and three results: Total Trip Distance (echoes the input), Fuel Needed (`distance ÷ mileage`, liters), and Estimated Cost (`fuel needed × price`, ₹). Local component state only.

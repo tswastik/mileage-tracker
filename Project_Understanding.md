@@ -1,6 +1,6 @@
 # Mileage Tracker — Codebase Understanding
 
-A standalone Expo/React Native mobile app (SDK 57, TypeScript strict) for logging petrol fill-ups and tracking mileage. Single vehicle, single user, no auth, no backend — everything lives in a local SQLite database on the device. It's a rebuild of an older FastAPI+MongoDB+React web prototype (preserved under `reference/legacy-prototype/`); see `Project_Plan.md` for the full rebuild rationale, the bugs that were deliberately fixed, and the phased build history.
+A standalone Expo/React Native mobile app (SDK 57, TypeScript strict) for logging petrol fill-ups and tracking mileage across one or more vehicles. Single user, no auth, no backend — everything lives in a local SQLite database on the device. It's a rebuild of an older FastAPI+MongoDB+React web prototype (preserved under `reference/legacy-prototype/`); see `Project_Plan.md` for the full rebuild rationale, the bugs that were deliberately fixed, and the phased build history.
 
 This document explains what's actually in the codebase and how the pieces fit together.
 
@@ -16,16 +16,21 @@ tsconfig.json                — extends expo/tsconfig.base, strict mode
 
 src/
   types/                    — plain TypeScript interfaces, no runtime code
-    fuelEntry.ts              FuelEntry, FuelEntryInput, EnrichedFuelEntry
-    analytics.ts               SummaryStats, MonthlyBreakdownEntry
+    fuelEntry.ts              FuelEntry, FuelEntryInput, FuelEntryRecord, EnrichedFuelEntry, RestorePayload
+    vehicle.ts                 Vehicle, VehicleInput, VehicleType
+    analytics.ts                SummaryStats, MonthlyBreakdownEntry
 
   constants/                — static values, no logic
     theme.ts                  color/font/radius/spacing design tokens
     analytics.ts                KPI/chart color map, the 30 km/L reference constant
+    vehicles.ts                 vehicle type → icon/label maps
 
   db/                       — SQLite access, no business rules
-    database.ts                singleton DB connection + schema
+    database.ts                singleton DB connection + schema + the multi-vehicle migration
     fuelEntryRepository.ts      CRUD functions over the fuel_entries table
+    vehicleRepository.ts         CRUD functions over the vehicles table
+    settingsRepository.ts        get/set for the app_settings key-value table (currently just
+                                the selected vehicle id)
 
   utils/                    — pure functions: business logic and formatting
     dateFormat.ts              local-safe date parsing/formatting
@@ -35,16 +40,18 @@ src/
     platformGuards.ts            web-vs-native capability checks
 
   context/
-    FuelEntriesContext.tsx     the app's single source of truth: state + CRUD + selectors
+    FuelEntriesContext.tsx     the app's single source of truth: state + CRUD + selectors,
+                                for both fuel entries and vehicles
 
   navigation/
     types.ts                   typed route/param definitions
     AppNavigator.tsx             root stack navigator
-    MainTabs.tsx                 bottom tab navigator
+    MainTabs.tsx                 bottom tab navigator (4 tabs)
 
   screens/                  — one file per screen, wired to the context
     DashboardScreen.tsx
     HistoryScreen.tsx
+    FuelCostCalculatorScreen.tsx
     SettingsScreen.tsx
     AddEditEntryScreen.tsx
 
@@ -54,6 +61,8 @@ src/
     ConfirmDialog.tsx
     KpiTile.tsx
     ScopeSelector.tsx
+    VehicleSelector.tsx
+    AddVehicleDialog.tsx
     ChartEmptyState.tsx
     MileageTrendChart.tsx
     LastTwoMonthsCard.tsx
@@ -61,10 +70,10 @@ src/
     FuelPriceTrendChart.tsx
 
   export/
-    exportService.ts           CSV export
+    exportService.ts           CSV export (scoped to whichever vehicle is selected)
 
   backup/
-    backupService.ts            JSON backup/restore
+    backupService.ts            JSON backup/restore (covers every vehicle)
 
 reference/legacy-prototype/  — the original web prototype, kept for logic reference, never executed
 ```
@@ -72,34 +81,37 @@ reference/legacy-prototype/  — the original web prototype, kept for logic refe
 ## Architecture: how data flows
 
 ```
-SQLite (fuel_entries table)
+SQLite (vehicles table, fuel_entries table, app_settings table)
     │  raw CRUD, snake_case rows
     ▼
-fuelEntryRepository.ts  ──►  FuelEntry[] (camelCase domain objects)
-    │
+vehicleRepository.ts / fuelEntryRepository.ts / settingsRepository.ts
+    │  Vehicle[] / FuelEntry[] (camelCase domain objects)
     ▼
-FuelEntriesContext  ──►  runs mileageEngine over the raw list on every change:
+FuelEntriesContext  ──►  filters to vehicleEntries = entries for the selected vehicle only,
+    │                     then runs mileageEngine over JUST that vehicle's entries:
     │                     - enrichedEntries   (chronological, with computed distance/mileage/etc.)
     │                     - historyEntries    (same, newest-first, for the History screen)
     │                     - monthlyBreakdown  (per-month aggregates, for the charts)
     │                     - distinctMonths    (for the scope selector)
     │                     - getSummary(month) (KPI numbers for a given scope)
     ▼
-Screens (Dashboard / History / Settings / AddEditEntry)
+Screens (Dashboard / History / Calculator / Settings / AddEditEntry)
     │  read via useFuelEntries(), never touch the repository or SQLite directly
     ▼
-Components (KpiTile, HistoryRow, the 4 charts, etc.) — purely presentational, take data as props
+Components (KpiTile, HistoryRow, VehicleSelector, the 4 charts, etc.) — purely presentational,
+    take data as props (except FuelCostCalculatorScreen, which has no context dependency at all)
 ```
 
-Two invariants worth knowing:
-- **The repository never runs business logic.** Mileage math and odometer validation live in `src/utils/` and are called from the context, not the DB layer. `fuelEntryRepository.ts` is dumb CRUD.
-- **Charts always read `monthlyBreakdown`, never a scoped summary.** The Dashboard's month/life-to-date selector only changes the 8 KPI tiles; the 4 charts always show full history. This was verified by testing, not just intended.
+Three invariants worth knowing:
+- **The repository never runs business logic.** Mileage math and odometer validation live in `src/utils/` and are called from the context, not the DB layer. `fuelEntryRepository.ts`/`vehicleRepository.ts` are dumb CRUD.
+- **Charts always read `monthlyBreakdown`, never a scoped summary.** The Dashboard's month/life-to-date selector only changes the 8 KPI tiles; the 4 charts always show full history for the selected vehicle. This was verified by testing, not just intended.
+- **Every vehicle has its own independent odometer sequence, and nothing is ever allowed to compare across vehicles.** `FuelEntriesContext` filters `entries` down to `vehicleEntries` (the selected vehicle only) *before* handing anything to `mileageEngine` or `odometerValidation`. Get this filtering wrong anywhere and distances/mileage would silently mix two vehicles' odometers into nonsense numbers — this was the single biggest risk when multi-vehicle support was added, and was specifically tested for (see `Project_Plan.md`'s Phase 6 verification note).
 
 ## Module-by-module reference
 
 ### Root files
 
-- **`App.tsx`** — Loads Work Sans + IBM Plex Sans via `@expo-google-fonts/*`, and separately "warms up" the database (`getDatabase()`) so the schema exists before any screen renders. Both gate a splash screen (`expo-splash-screen`) that only hides once fonts are loaded *and* the DB is ready. Renders `SafeAreaProvider > FuelEntriesProvider > NavigationContainer > AppNavigator`.
+- **`App.tsx`** — Loads Work Sans + IBM Plex Sans via `@expo-google-fonts/*`, and separately "warms up" the database (`getDatabase()`) so the schema (and the multi-vehicle migration) has run before any screen renders. Both gate a splash screen (`expo-splash-screen`) that only hides once fonts are loaded *and* the DB is ready. Renders `SafeAreaProvider > FuelEntriesProvider > NavigationContainer > AppNavigator`.
 - **`index.ts`** — Standard Expo entry point, unmodified from the template (`registerRootComponent(App)`).
 - **`app.json`** — App name "Mileage Tracker", Android package `com.tswastik.mileagetracker`, `userInterfaceStyle: light`. Icon/splash/adaptive-icon images are still Expo's default template assets — custom branding is deferred (see `Project_Plan.md`). `plugins` lists only what's actually used: `expo-sqlite`, the community date-time-picker, `expo-sharing`, `expo-font`, `expo-splash-screen`.
 - **`metro.config.js`** — See "Web platform notes" below; without this, `expo-sqlite` fails to bundle for web at all.
@@ -108,9 +120,15 @@ Two invariants worth knowing:
 ### `src/types/` — domain types
 
 - **`fuelEntry.ts`**
-  - `FuelEntry` — one row's worth of data as the app uses it: `id, date, odometerKm, liters, totalPriceInr, station, notes, createdAt`.
-  - `FuelEntryInput` — `Omit<FuelEntry, 'id' | 'createdAt'>`, i.e. what a form submits (id and createdAt are assigned on write).
+  - `FuelEntry` — one row's worth of data as the app uses it: `id, vehicleId, date, odometerKm, liters, totalPriceInr, station, notes, createdAt`.
+  - `FuelEntryInput` — `Omit<FuelEntry, 'id' | 'createdAt' | 'vehicleId'>`, i.e. exactly what the Add/Edit form submits. The vehicle is never chosen per-entry in the UI — it's implied by whichever vehicle is currently selected — so it's deliberately not part of this type.
+  - `FuelEntryRecord` — `Omit<FuelEntry, 'id' | 'createdAt'>`, i.e. a `FuelEntryInput` stamped with `vehicleId`. This is what the repository's `create`/`update` actually persist; the context is responsible for turning an `Input` into a `Record` by adding the vehicle id.
   - `EnrichedFuelEntry` — a `FuelEntry` plus the four computed fields: `distanceKm`, `mileageKmpl`, `pricePerLiter`, `costPerKm` (each `number | null`).
+  - `RestorePayload` — the shape `FuelEntriesContext.importBackup` consumes: `{ vehicles: VehicleInput[], entries: Array<FuelEntryInput & { vehicleIndex: number }> }`. Entries reference which vehicle they belong to by *position* in the `vehicles` array, not by any id from the backup file — those ids stop meaning anything once everything is recreated fresh on restore. `backupService.ts` is responsible for producing this shape from a raw backup file.
+- **`vehicle.ts`**
+  - `VehicleType` — `'two_wheeler' | 'four_wheeler'`.
+  - `Vehicle` — `{ id, name, type, createdAt }`.
+  - `VehicleInput` — `Omit<Vehicle, 'id' | 'createdAt'>`.
 - **`analytics.ts`**
   - `SummaryStats` — the shape of one scope's (life-to-date or one month's) KPI numbers: `scope` (display label), `totalSpent`, `totalLiters`, `totalDistanceKm`, `avgMileageKmpl`, `avgCostPerKm`, `avgPricePerLiter`, `entryCount`.
   - `MonthlyBreakdownEntry` — the same shape minus `avgCostPerKm` and with `scope` replaced by `month` (`"YYYY-MM"`) — this is what feeds every chart.
@@ -119,55 +137,73 @@ Two invariants worth knowing:
 
 - **`theme.ts`** — the single source of truth for colors, fonts, corner radii, and spacing. Colors follow the original prototype's "Organic & Earthy" palette: `background` (bone white `#F9F8F6`), `textPrimary`/`textMuted`, `border`, `forestGreen` (primary/brand), `terracotta` (secondary accent), `blue` (tertiary accent), plus hover variants. `fonts` maps semantic names (`heading`, `headingBold`, `body`, `bodyMedium`, `bodySemiBold`) to the actual loaded font family strings. Every screen and component imports from here rather than hardcoding hex values or font names.
 - **`analytics.ts`** — `LAST_TWO_MONTHS_REFERENCE_KMPL = 30` (the fixed reference the last-2-months bar width is normalized against) and `kpiColors`, mapping each of the 8 KPI tiles to one of the theme's accent colors.
+- **`vehicles.ts`** — `VEHICLE_TYPE_ICON` (🏍️/🚗) and `VEHICLE_TYPE_LABEL` ("Two-wheeler"/"Four-wheeler"), keyed by `VehicleType`. Used by `VehicleSelector`, `AddVehicleDialog`, `AddEditEntryScreen`'s vehicle badge, and `SettingsScreen`'s vehicle list.
 
 ### `src/db/` — SQLite access layer
 
-- **`database.ts`** — Exposes one function, `getDatabase()`, which lazily opens `mileage-tracker.db` via `expo-sqlite`'s `openDatabaseAsync` and runs the schema (`PRAGMA journal_mode = WAL`, `CREATE TABLE IF NOT EXISTS fuel_entries (...)`, an index on `(date, created_at)`) exactly once. The resulting promise is memoized at module scope, so every caller across the app shares the same connection and the schema only runs once per process.
-- **`fuelEntryRepository.ts`** — The only file that writes raw SQL. A private `FuelEntryRow` interface mirrors the table's snake_case columns; `rowToFuelEntry()` maps a row to the camelCase `FuelEntry` type. Exposes `listAll()` (ascending by date/created_at), `getById(id)`, `create(input)`, `update(id, input)`, `remove(id)` — all parameterized queries via `db.getAllAsync`/`getFirstAsync`/`runAsync`. No validation, no mileage math — purely persistence.
+- **`database.ts`** — Exposes one function, `getDatabase()`, which lazily opens `mileage-tracker.db` via `expo-sqlite`'s `openDatabaseAsync`, runs the base schema (`fuel_entries`, `vehicles`, `app_settings` tables, `PRAGMA journal_mode = WAL`), and then runs `migrateVehicleSupport()`. That migration is additive and idempotent, safe to run on every boot (this app has no versioned migration framework — see `Project_Plan.md`):
+  1. Checks `PRAGMA table_info(fuel_entries)` for a `vehicle_id` column; adds it via `ALTER TABLE` only if missing.
+  2. If the `vehicles` table is empty, inserts one default vehicle ("My Vehicle", four-wheeler).
+  3. Backfills any `fuel_entries` row where `vehicle_id IS NULL` onto the first vehicle that exists.
+  This is how a device with real pre-multi-vehicle data (dates, odometers, everything) gets a working default vehicle with zero data loss, entirely automatically. The whole `dbPromise` (schema + migration) is memoized at module scope, so every caller shares one connection and this only actually runs once per process.
+- **`fuelEntryRepository.ts`** — The only file that writes raw SQL for fuel entries. A private `FuelEntryRow` interface mirrors the table's snake_case columns (including `vehicle_id`); `rowToFuelEntry()` maps a row to the camelCase `FuelEntry` type. Exposes `listAll()` (every vehicle's entries, ascending by date/created_at — filtering to one vehicle is the context's job, not this layer's), `getById(id)`, `create(input: FuelEntryRecord)`, `update(id, input: FuelEntryRecord)`, `remove(id)`. No validation, no mileage math, no vehicle-scoping — purely persistence.
+- **`vehicleRepository.ts`** — `listAll()` (ascending by id), `create(input: VehicleInput)`, `remove(id)`. Same dumb-CRUD philosophy; the "can't delete a vehicle with entries" rule lives in the context, not here.
+- **`settingsRepository.ts`** — A thin wrapper over the generic `app_settings` key-value table: `getSelectedVehicleId()` / `setSelectedVehicleId(id)`. Deliberately generic (a `key`/`value` table, not a bespoke single-purpose one) so future settings don't need their own table each.
 
 ### `src/utils/` — business logic and formatting
 
 - **`dateFormat.ts`** — All date handling funnels through here, using `date-fns`'s `parseISO`/`format` instead of the JS `Date` constructor on a bare `"YYYY-MM-DD"` string (which parses as UTC and can display the wrong day depending on the device's timezone — a real bug in the original prototype). Exports `todayLocalISODate()`, `formatDisplayDate()` (`"dd MMM yyyy"`), `formatMonthLabel()` (`"YYYY-MM"` → `"MMM yyyy"`), `toDateOnlyString(date)`, and `parseDateOnly(iso)`.
-- **`format.ts`** — Two number-formatting helpers shared by `HistoryRow` and the Dashboard: `formatInr(n)` (`"₹1,234"`, or `"—"` for null/NaN) and `formatNum(n, suffix, decimals)` (locale-formatted with an optional suffix, same null handling). Both use `en-IN` locale formatting (Indian digit grouping) with no minimum fraction digits, matching the original.
-- **`mileageEngine.ts`** — The core analytics module. In order of what's in the file:
+- **`format.ts`** — Two number-formatting helpers shared by `HistoryRow`, the Dashboard, and the calculator: `formatInr(n)` (`"₹1,234"`, or `"—"` for null/NaN) and `formatNum(n, suffix, decimals)` (locale-formatted with an optional suffix, same null handling). Both use `en-IN` locale formatting (Indian digit grouping) with no minimum fraction digits, matching the original.
+- **`mileageEngine.ts`** — The core analytics module. Every function here is vehicle-agnostic on purpose — it just operates on whatever entry list it's handed — and it's the *caller's* job (always `FuelEntriesContext`) to pass in only one vehicle's entries. In order of what's in the file:
   - `chronologicalSort(entries)` — generic sort by `(date, createdAt)` ascending; this exact ordering rule is used everywhere entries need to be sequenced.
   - `computeEnrichedEntries(entries)` — the heart of the app. Walks the chronologically-sorted list once, tracking the previous entry's odometer reading, and computes each entry's `distanceKm`, `mileageKmpl`, `pricePerLiter`, `costPerKm` (all null-guarded — the first entry has no distance baseline, and every division checks its denominator is `> 0` first). Distance/mileage assume this entry's odometer is `>` the previous one, which is now always true because `odometerValidation.ts` enforces it at write time.
   - `sortHistoryDescending(entries)` — re-sorts an already-enriched list newest-first, for the History screen.
   - `computeSummary(enriched, month)` — the KPI numbers for one scope (`month = null` means life-to-date). Filters the *already-enriched* list by `date.startsWith(month)` — meaning scope filtering happens after the global chronological mileage computation, so a month's first entry can still carry a valid distance computed against the previous month's last entry. Reproduces the original's deliberate formula asymmetry: `totalSpent`/`totalLiters`/`entryCount` use every entry in scope, `avgMileageKmpl`/`avgCostPerKm` use only the subset with a computed distance, and `avgPricePerLiter` uses the all-entries totals (not the distance-having subset) — see "Known behaviors" below.
   - `computeMonthlyBreakdown(enriched)` — calls `computeSummary` once per distinct month (ascending), for the charts.
   - `listDistinctMonthsDescending(enriched)` — feeds the `ScopeSelector` dropdown/chip list.
-- **`odometerValidation.ts`** — `validateFuelEntryInput(input, allEntries, editingId?)`. Field checks (`liters > 0`, `totalPriceInr > 0`, `odometerKm >= 0`), then finds the input's true chronological neighbors (excluding the entry being edited, if any) and rejects unless `odometerKm` falls between the previous entry's and next entry's odometer readings. This is the fix for the original's cascading-corruption bug — see "Known behaviors" below.
+- **`odometerValidation.ts`** — `validateFuelEntryInput(input, allEntries, editingId?)`. Field checks (`liters > 0`, `totalPriceInr > 0`, `odometerKm >= 0`), then finds the input's true chronological neighbors within `allEntries` (excluding the entry being edited, if any) and rejects unless `odometerKm` falls between the previous entry's and next entry's odometer readings. Doesn't know about vehicles at all — the caller must pass only the relevant vehicle's entries as `allEntries`, or this silently validates against the wrong vehicle's odometers. This is the fix for the original's cascading-corruption bug — see "Known behaviors" below.
 - **`platformGuards.ts`** — `assertFileSystemSupported()`, called at the top of every export/backup function. `expo-file-system`'s new File/Directory API has no web implementation at all; this throws a clear, actionable error ("...need a phone or emulator...") instead of letting an internal error like `this.validatePath is not a function` reach the user.
 
 ### `src/context/FuelEntriesContext.tsx` — application state
 
-A single React Context + `useReducer`, provided once at the app root (`FuelEntriesProvider` in `App.tsx`) and consumed everywhere via the `useFuelEntries()` hook. This is the *only* place screens should get or mutate fuel-entry data — no screen calls the repository or `mileageEngine` directly.
+A single React Context + `useReducer`, provided once at the app root (`FuelEntriesProvider` in `App.tsx`) and consumed everywhere via the `useFuelEntries()` hook. This is the *only* place screens should get or mutate fuel-entry or vehicle data — no screen calls a repository or `mileageEngine` directly.
 
-- **State**: `{ entries: FuelEntry[], loading: boolean }` — the raw, unenriched list as loaded from SQLite.
-- **Reducer actions**: `LOADED` (full replace, used on initial mount and after a backup restore), `ADDED`, `UPDATED`, `REMOVED`.
-- **Mutating methods** (`addEntry`, `updateEntry`, `deleteEntry`, `importBackup`) all call `odometerValidation` before touching the repository, and throw a plain `Error` on failure so callers can `try/catch` and show it inline. `importBackup` is the most involved: it validates the *entire* incoming backup against an in-memory accumulator first (no DB writes at all during validation), and only deletes the existing entries and re-creates the backup's entries once the whole file is confirmed valid — a corrupt or hand-edited backup can never leave the database half-cleared.
-- **Derived/memoized values**, all recomputed only when `state.entries` changes: `enrichedEntries`, `historyEntries`, `monthlyBreakdown`, `distinctMonths`, and the `getSummary(month)` selector function. Every screen that needs computed numbers reads one of these rather than calling `mileageEngine` itself.
+- **State**: `{ vehicles: Vehicle[], entries: FuelEntry[] (every vehicle's), selectedVehicleId: number | null, loading: boolean }`.
+- **Reducer actions**: `LOADED`/`RESTORED` (full replace of vehicles+entries+selection — used on initial mount and after a backup restore), `ENTRY_ADDED`/`ENTRY_UPDATED`/`ENTRY_REMOVED`, `VEHICLE_ADDED` (also selects the new vehicle), `VEHICLE_REMOVED` (falls back to another vehicle if the removed one was selected), `VEHICLE_SELECTED`.
+- **On mount**: loads vehicles, all entries, and the persisted selected-vehicle-id (from `settingsRepository`) together. If the persisted id doesn't match any loaded vehicle (e.g. it was deleted in a previous session), falls back to the first vehicle.
+- **`vehicleEntries`** (internal, memoized) — `entries.filter(e => e.vehicleId === selectedVehicleId)`. Every derived value below is computed from this, never from the raw `entries`.
+- **Mutating methods**:
+  - `addEntry`/`updateEntry` — stamp the entry with the correct vehicle id (`selectedVehicleId` for a new entry; the *existing* entry's own `vehicleId` for an edit, so an edit can never silently move an entry to a different vehicle), validate against `vehicleEntries`/same-vehicle entries only, then write. Throw a plain `Error` on failure so callers can `try/catch` and show it inline.
+  - `deleteEntry` — unchanged from before multi-vehicle support.
+  - `selectVehicle(id)` — updates state and persists the choice via `settingsRepository`.
+  - `addVehicle(input)` — creates it, auto-selects it (so adding a vehicle immediately switches to logging for it), and persists the selection.
+  - `deleteVehicle(id)` — refuses (throws) if that vehicle has *any* entries — no cascade-delete, ever. If the deleted vehicle was selected, falls back to another vehicle (or `null` if none remain) and persists that.
+  - `importBackup(payload: RestorePayload)` — the most involved method. Every vehicle's entries are validated **independently**, as their own odometer sequence, against an in-memory accumulator only — no DB writes happen during validation. Only once the *entire* backup (every vehicle) is confirmed valid does it delete every existing entry and vehicle and recreate everything from the payload, then select the first restored vehicle. A corrupt or hand-edited backup can never leave the database half-cleared.
+- **Derived/memoized values**, all recomputed only when `vehicleEntries` changes: `enrichedEntries`, `historyEntries`, `monthlyBreakdown`, `distinctMonths`, and the `getSummary(month)` selector function. Also exposes `vehicles`, `selectedVehicleId`, and `selectedVehicle` (the resolved `Vehicle` object, or `undefined`) directly.
 
 ### `src/navigation/`
 
-- **`types.ts`** — `RootStackParamList` (`MainTabs`, `AddEditEntry: { entryId?: number }`), `MainTabParamList` (`DashboardTab`, `HistoryTab`, `SettingsTab`), and typed prop aliases (`DashboardTabScreenProps`, etc.) built with React Navigation's `CompositeScreenProps` so each screen gets both its tab and stack navigation props correctly typed.
+- **`types.ts`** — `RootStackParamList` (`MainTabs`, `AddEditEntry: { entryId?: number }`), `MainTabParamList` (`DashboardTab`, `HistoryTab`, `CalculatorTab`, `SettingsTab`), and typed prop aliases (`DashboardTabScreenProps`, etc.) built with React Navigation's `CompositeScreenProps` so each screen gets both its tab and stack navigation props correctly typed.
 - **`AppNavigator.tsx`** — Root `createNativeStackNavigator`. `MainTabs` is the initial route (no header). `AddEditEntry` is pushed on top as a **modal** presentation, with its header title switching between "Log Refuel" and "Edit Refuel" based on whether `route.params?.entryId` is set — one screen handles both add and edit.
-- **`MainTabs.tsx`** — `createBottomTabNavigator` with three tabs (Dashboard ⛽, History 📋, Settings ⚙️), emoji icons via a small local `TabIcon` helper, active tint set to the forest-green theme color.
+- **`MainTabs.tsx`** — `createBottomTabNavigator` with four tabs (Dashboard ⛽, History 📋, Calculator 🧮, Settings ⚙️), emoji icons via a small local `TabIcon` helper, active tint set to the forest-green theme color.
 
 ### `src/screens/`
 
-- **`DashboardScreen.tsx`** — The main view. Holds `selectedMonth` (`string | null`) as local state, derives `summary` via `getSummary(selectedMonth)`, and renders: a header with a "+ Log refuel" button, `ScopeSelector`, a 2-column grid of 8 `KpiTile`s, then all 4 chart components (always fed `monthlyBreakdown`, not `summary`). Root element is a `SafeAreaView` (`edges={['top']}`) — see "Status bar / safe area" below.
-- **`HistoryScreen.tsx`** — Renders `historyEntries` (newest-first) in a `FlatList` of `HistoryRow`s. Edit navigates to `AddEditEntry` with `entryId`; delete sets a `pendingDelete` entry in local state, which drives a `ConfirmDialog` — nothing is deleted until the dialog is confirmed. Has its own empty state and its own "+ Log refuel" entry point. Root element is a `SafeAreaView` (`edges={['top']}`).
-- **`SettingsScreen.tsx`** — Three cards: Export (CSV), Backup (backup/restore), About (app name + entry count). A single `runAction(actionName, fn)` helper tracks a `busy` flag (used to disable buttons and swap in an `ActivityIndicator`) and catches errors into a shared inline `error` message. Restore is two-step: `pickAndReadBackup()` first, then a `ConfirmDialog` naming exactly how many entries will be replaced by how many, and only calls `importBackup()` on confirmation. Root element is a `SafeAreaView` (`edges={['top']}`).
-- **`AddEditEntryScreen.tsx`** — Shared form for both flows. Reads `route.params?.entryId`; if present, looks up the existing entry via `getEntryById` and pre-fills every field. Client-side checks (all fields present, numeric fields actually numeric) run before calling `addEntry`/`updateEntry`; a thrown validation error (from `odometerValidation`, surfaced through the context) is caught and shown as inline red text above the submit button.
+- **`DashboardScreen.tsx`** — The main view. Renders a header with "+ Log refuel", then `VehicleSelector`, then the rest scoped to whichever vehicle is selected: `selectedMonth` (`string | null`) local state driving `summary` via `getSummary(selectedMonth)`, a 2-column grid of 8 `KpiTile`s, then all 4 chart components (always fed `monthlyBreakdown`, not `summary`). Root element is a `SafeAreaView` (`edges={['top']}`) — see "Status bar / safe area" below.
+- **`HistoryScreen.tsx`** — Header, then `VehicleSelector`, then `historyEntries` (newest-first, already scoped to the selected vehicle) in a `FlatList` of `HistoryRow`s. Edit navigates to `AddEditEntry` with `entryId`; delete sets a `pendingDelete` entry in local state, which drives a `ConfirmDialog` — nothing is deleted until the dialog is confirmed. Has its own empty state and its own "+ Log refuel" entry point. Root element is a `SafeAreaView` (`edges={['top']}`).
+- **`FuelCostCalculatorScreen.tsx`** — Fully standalone: no context, no persistence, three local-state inputs (distance, mileage, fuel price), a "Calculate fuel cost" button, and a result card (Total trip distance, Fuel needed = distance ÷ mileage, Estimated cost = fuel needed × price). Explicitly "not saved anywhere, not tied to a vehicle" per the screen's own subtitle.
+- **`SettingsScreen.tsx`** — Four cards: **Vehicles** (list with entry counts; a "Delete" link appears only for a vehicle with zero entries, backed by a `ConfirmDialog`), **Export** (CSV, labeled with the currently-selected vehicle's name, scoped to `historyEntries`), **Backup** (backup covers every vehicle — `writeAndShareBackup(vehicles, entries)` — and restore, which is two-step: `pickAndReadBackup()` first, then a `ConfirmDialog` naming exactly how many vehicles/entries will be replaced by how many, only calling `importBackup()` on confirmation), **About** (app name, vehicle count, entry count). A single `runAction(actionName, fn)` helper tracks a `busy` flag (disables buttons, swaps in an `ActivityIndicator`) and catches errors into a shared inline `error` message. Root element is a `SafeAreaView` (`edges={['top']}`).
+- **`AddEditEntryScreen.tsx`** — Shared form for both flows. Reads `route.params?.entryId`; if present, looks up the existing entry via `getEntryById` and pre-fills every field. Shows a small non-editable "🏍️/🚗 Logging for {vehicle name}" badge at the top — the entry's own vehicle when editing, the currently-selected vehicle when adding — since there's no per-entry vehicle picker in the form by design (the vehicle is chosen globally via `VehicleSelector`, not per entry). Client-side checks (all fields present, numeric fields actually numeric) run before calling `addEntry`/`updateEntry`; a thrown validation error (from `odometerValidation`, surfaced through the context) is caught and shown as inline red text above the submit button.
 
 ### `src/components/`
 
 - **`DateField.tsx` / `DateField.web.tsx`** — A labeled date-only field. The native version wraps `@react-native-community/datetimepicker`'s `<DateTimePicker>` behind a `Pressable` that toggles its visibility (spinner display on iOS, default on Android). The `.web.tsx` variant (which Metro picks automatically on web, since that library has no web build) renders a plain `<input type="date">` styled to match the theme.
 - **`HistoryRow.tsx`** — One row in the History list: date, odometer/liters/price line, price-per-liter/distance/station line, and a mileage figure on the right (colored forest-green if present, muted "—" if not) with Edit/Delete text actions.
-- **`ConfirmDialog.tsx`** — A custom `Modal`-based confirmation dialog (title, message, Cancel/Confirm buttons), used everywhere a destructive action needs confirmation. See "Known behaviors" for why this exists instead of `Alert.alert`.
+- **`ConfirmDialog.tsx`** — A custom `Modal`-based confirmation dialog (title, message, Cancel/Confirm buttons), used everywhere a destructive action needs confirmation (delete entry, delete vehicle, restore backup). See "Known behaviors" for why this exists instead of `Alert.alert`.
 - **`KpiTile.tsx`** — One Dashboard KPI card: a small icon chip (background = `accentColor` at ~8% alpha, via a `"14"` hex suffix — same technique the original web app used), an uppercase muted label, and a bold value.
-- **`ScopeSelector.tsx`** — A horizontal scrollable row of chips: "All time" plus one chip per distinct month (descending), the active one filled forest-green.
+- **`ScopeSelector.tsx`** — A horizontal scrollable row of chips: "All time" plus one chip per distinct month (descending, scoped to the selected vehicle), the active one filled forest-green.
+- **`VehicleSelector.tsx`** — A horizontal scrollable row of chips, one per vehicle (icon by type + name, active one filled forest-green), plus a trailing dashed "+ Add vehicle" chip that opens `AddVehicleDialog`. Rendered at the top of both `DashboardScreen` and `HistoryScreen`.
+- **`AddVehicleDialog.tsx`** — A small `Modal` form (name text input + a two-button type toggle, two-wheeler/four-wheeler with icons), Cancel/Add buttons. Visually matches `ConfirmDialog`'s card-on-backdrop style. Local-only validation (name required).
 - **`ChartEmptyState.tsx`** — A small dashed-border box with a centered message, reused by all 4 chart components for their respective empty states.
 - **`MileageTrendChart.tsx`** — `react-native-gifted-charts` `LineChart` in area mode: forest-green line and gradient fill (35%→2% opacity), curved. Months with a null `avgMileageKmpl` are omitted from the data entirely rather than plotted as zero — since gifted-charts has no `connectNulls` flag, dropping the point makes the line connect straight across the gap to the next valid point, the same visual effect the original achieved differently.
 - **`LastTwoMonthsCard.tsx`** — *Not* a chart-library component — hand-rolled `View`s, matching the original. Shows the two most recent months' mileage and spend, with a horizontal bar whose width is `min(100, avgMileageKmpl / 30 * 100)%` (so both months commonly hit 100% width if mileage exceeds the 30 km/L reference — that's the original's formula, not a bug).
@@ -176,19 +212,38 @@ A single React Context + `useReducer`, provided once at the app root (`FuelEntri
 
 ### `src/export/exportService.ts`
 
-`buildEntriesCsv(entries)` builds a CSV string (10 columns: date through notes, values properly quote-escaped) from a list of `EnrichedFuelEntry`. `exportEntriesAsCsv(entries)` writes it to a temp file via `expo-file-system`'s `File`/`Paths.cache` and shares it via `expo-sharing` (guarded by `Sharing.isAvailableAsync()`), after checking `assertFileSystemSupported()`.
+`buildEntriesCsv(entries)` builds a CSV string (10 columns: date through notes, values properly quote-escaped) from a list of `EnrichedFuelEntry`. `exportEntriesAsCsv(entries, vehicleName?)` writes it to a temp file via `expo-file-system`'s `File`/`Paths.cache` and shares it via `expo-sharing` (guarded by `Sharing.isAvailableAsync()`), after checking `assertFileSystemSupported()`. `vehicleName`, when given, is slugified into the filename (e.g. `mileage-tracker-export-activa-...csv`) so exports from different vehicles don't collide/overwrite each other on the device.
 
 ### `src/backup/backupService.ts`
 
-Full-fidelity JSON backup, separate from the CSV report above. `writeAndShareBackup(entries)` wraps the raw `FuelEntry[]` in a versioned envelope `{ version: 1, exportedAt, entries }`, writes it under a `backups/` subdirectory of `Paths.document`, and shares it. `pickAndReadBackup()` opens the system file picker (`File.pickFileAsync`), reads and JSON-parses the result, validates its shape with a type guard (`isBackupPayload`), and returns the entries stripped of `id`/`createdAt` (ready to feed into `FuelEntriesContext.importBackup`). Both are pure — no UI code; `SettingsScreen` handles the busy state, errors, and confirmation.
+Full-fidelity JSON backup, separate from the CSV report above, and — since multi-vehicle support — the only place backup/restore code actually lives; `FuelEntriesContext.importBackup` does the writing, this module only reads/writes files and shapes the data.
+
+- `writeAndShareBackup(vehicles, entries)` wraps everything in a versioned envelope `{ version: 2, exportedAt, vehicles, entries }` (bumped from `version: 1`, which had no `vehicles` array or `vehicleId` on entries at all), writes it under a `backups/` subdirectory of `Paths.document`, and shares it.
+- `pickAndReadBackup(): Promise<RestorePayload>` opens the system file picker (`File.pickFileAsync`), reads and JSON-parses the result, validates its shape with a type guard (`isBackupPayload`) that accepts *either* a `version: 1` or `version: 2` payload, and normalizes both into the same `RestorePayload` shape:
+  - **`version: 2`**: builds an old-vehicle-id → array-index map, strips ids/timestamps from vehicles and entries, and rewrites each entry's `vehicleId` as a `vehicleIndex` into the (also-stripped) `vehicles` array.
+  - **`version: 1`** (a backup taken before this phase existed): synthesizes a single default vehicle (`{ name: 'My Vehicle', type: 'four_wheeler' }`) and assigns every entry to `vehicleIndex: 0` — the exact same fallback the on-device schema migration uses for pre-existing data, so an old backup restores just as cleanly as an old device upgrades.
+
+Both are pure — no UI code; `SettingsScreen` handles the busy state, errors, and confirmation.
 
 ## Data model
 
-Single SQLite table, `fuel_entries`:
+Three SQLite tables:
+
+**`vehicles`**
 
 | Column | Type | Notes |
 |---|---|---|
 | `id` | `INTEGER PRIMARY KEY AUTOINCREMENT` | |
+| `name` | `TEXT` | user-chosen, e.g. "Activa" |
+| `type` | `TEXT` | `'two_wheeler'` \| `'four_wheeler'` |
+| `created_at` | `TEXT` | ISO timestamp |
+
+**`fuel_entries`**
+
+| Column | Type | Notes |
+|---|---|---|
+| `id` | `INTEGER PRIMARY KEY AUTOINCREMENT` | |
+| `vehicle_id` | `INTEGER` | added via migration (see `database.ts` above); every entry belongs to exactly one vehicle |
 | `date` | `TEXT` | `YYYY-MM-DD`, always parsed/formatted as a local calendar date |
 | `odometer_km` | `REAL` | |
 | `liters` | `REAL` | always `> 0` (enforced) |
@@ -197,20 +252,24 @@ Single SQLite table, `fuel_entries`:
 | `notes` | `TEXT` | optional, default `''` |
 | `created_at` | `TEXT` | ISO timestamp, set once on insert, used as the tie-break for same-date entries |
 
-No `vehicles` table — single vehicle is assumed everywhere (a v1 scope decision, not an oversight). Index on `(date, created_at)` matches the sort order used throughout the app.
+Index on `(date, created_at)` matches the sort order used throughout the app — note this index is *not* per-vehicle; the app relies on `FuelEntriesContext` filtering by `vehicleId` before it ever needs date-ordering, not on the database doing it.
+
+**`app_settings`** — generic `key TEXT PRIMARY KEY, value TEXT` table. Currently holds one row, `selected_vehicle_id`, but designed to hold future settings without new tables.
 
 ## Known behaviors (read before changing the math)
 
-**The odometer-sequencing fix.** The original prototype accepted a non-increasing odometer reading silently, then used that bad value as the baseline for the *next* entry's distance calculation — a cascading corruption bug. Here, `odometerValidation.ts` checks every create/edit against the entry's real chronological neighbors (by date) before anything is written, so a bad reading can never be persisted. This also means historical backfilling (inserting an older entry between two existing dates) is validated correctly against both real neighbors, not just the most recent entry.
+**The odometer-sequencing fix.** The original prototype accepted a non-increasing odometer reading silently, then used that bad value as the baseline for the *next* entry's distance calculation — a cascading corruption bug. Here, `odometerValidation.ts` checks every create/edit against the entry's real chronological neighbors (by date, **within the same vehicle**) before anything is written, so a bad reading can never be persisted. This also means historical backfilling (inserting an older entry between two existing dates) is validated correctly against both real neighbors, not just the most recent entry.
 
-**The `avgPricePerLiter` asymmetry.** This looks like a bug but is intentional and preserved from the original: `avgPricePerLiter` divides total spend by total liters across *every* entry in scope, while `avgMileageKmpl` and `avgCostPerKm` only use entries that have a computed distance (i.e., not the very first entry ever logged). If you're debugging "why don't these two ratios agree," this is why — don't "fix" it without checking `Project_Plan.md` first.
+**The `avgPricePerLiter` asymmetry.** This looks like a bug but is intentional and preserved from the original: `avgPricePerLiter` divides total spend by total liters across *every* entry in scope, while `avgMileageKmpl` and `avgCostPerKm` only use entries that have a computed distance (i.e., not the very first entry ever logged for that vehicle). If you're debugging "why don't these two ratios agree," this is why — don't "fix" it without checking `Project_Plan.md` first.
 
 **Confirmation dialogs use a custom `Modal`, not `Alert.alert`/`window.confirm`.** Discovered during testing: react-native-web silently no-ops `Alert.alert`'s buttons, and `window.confirm` is suppressed in at least one sandboxed browser context this app was tested in. `ConfirmDialog.tsx` works identically on every platform and happens to also match the original prototype's own inline confirmation pattern more closely than a native popup would.
 
 **Web platform notes.** `expo-sqlite` *does* work on web, but only because `metro.config.js` adds `.wasm` as a Metro asset extension and sets `Cross-Origin-Opener-Policy`/`Cross-Origin-Embedder-Policy` response headers — both required by its `wa-sqlite` web backend. Without that config, the app fails to bundle for web at all. `expo-file-system`'s new File/Directory API, by contrast, has **no** web implementation whatsoever — `platformGuards.ts` turns that into a clear message rather than a raw internal error. Practically: `expo start --web` is a genuine, fully-functional testing surface for everything except export/backup/restore, which need an Android/iOS device or emulator via Expo Go.
 
-**Status bar / safe area.** `DashboardScreen`, `HistoryScreen`, and `SettingsScreen` each draw their own header (a title plus, on Dashboard/History, a "+ Log refuel" button) because both the tab navigator (`MainTabs.tsx`) and the root stack (`AppNavigator.tsx`) run with `headerShown: false` for the tab group — nothing else inserts a status-bar-aware header for them. All three wrap their root element in `SafeAreaView` from `react-native-safe-area-context` with `edges={['top']}` (never `react-native`'s own `SafeAreaView`, which doesn't handle Android reliably) so content starts below the status bar without touching the status bar itself. Found and fixed after on-device Android testing surfaced the header — and critically, the "+ Log refuel" button — rendering under/behind the status bar, making the button unreliable to tap. `AddEditEntryScreen` never needed this: it's pushed with a real native-stack header (`headerShown` true for that one route), which insets correctly on its own.
+**Status bar / safe area.** `DashboardScreen`, `HistoryScreen`, and `SettingsScreen` each draw their own header because both the tab navigator (`MainTabs.tsx`) and the root stack (`AppNavigator.tsx`) run with `headerShown: false` for the tab group — nothing else inserts a status-bar-aware header for them. All three wrap their root element in `SafeAreaView` from `react-native-safe-area-context` with `edges={['top']}` (never `react-native`'s own `SafeAreaView`, which doesn't handle Android reliably) so content starts below the status bar without touching the status bar itself. Found and fixed after on-device Android testing surfaced the header — and critically, the "+ Log refuel" button — rendering under/behind the status bar, making the button unreliable to tap.
+
+**No cascade-delete for vehicles, ever.** `deleteVehicle` refuses outright if the vehicle has any logged entries. There is no "delete this vehicle and all its history" path anywhere in the app — the only way a vehicle's entries go away is deleting them individually first. This was a deliberate scope cut, not a missing feature: it avoids a genuinely destructive, hard-to-undo operation that wasn't asked for.
 
 ## Status
 
-All 5 build phases are complete (scaffold/DB/nav → add/edit/history/validation → analytics/KPIs → charts → export/backup/settings), plus one on-device fix since (the status-bar overlap above). Everything except export/backup/restore has been verified end-to-end via `expo start --web`; navigation, the "+ Log refuel" flow, and general look-and-feel have since been confirmed on a physical Android device via Expo Go too. Export/backup/restore, the native date picker, and `Alert.alert` paths still haven't been explicitly re-confirmed on-device. App icon/splash branding is still Expo's default template assets. See `Project_Plan.md` for the full build history and the out-of-scope backlog (multi-vehicle, predicted-refuel alerts, maintenance log).
+All 5 core-build phases plus Phase 6 (multiple vehicles) and Phase 7 (fuel cost calculator) are complete. Full CRUD, the odometer-sequencing fix (now per-vehicle), the analytics engine, all 4 dashboard charts, CSV export, JSON backup/restore (now vehicle-aware, with v1-backup backward compatibility), vehicle add/switch/delete, and the standalone calculator are all built. Everything has been verified end-to-end via `expo start --web`, including the on-device-data migration path (confirmed on a real pre-existing database that entries survive and land on a correctly-created default vehicle) and vehicle isolation (confirmed that a second vehicle's much-lower odometer reading is accepted without triggering the first vehicle's sequencing rule). What still needs an on-device Expo Go pass: backup/restore's new v2 format specifically (file-system APIs don't work on web at all), the native date picker, and a general regression now that there are 4 tabs and vehicle-switching UI in play. App icon/splash branding is still Expo's default template assets. See `Project_Plan.md` for the full build history and the remaining backlog (predicted-refuel alerts, maintenance log).

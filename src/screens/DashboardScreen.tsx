@@ -6,6 +6,7 @@ import { kpiColors } from '../constants/analytics';
 import { formatInr, formatNum } from '../utils/format';
 import { useFuelEntries } from '../context/FuelEntriesContext';
 import KpiTile from '../components/KpiTile';
+import VehicleSelector from '../components/VehicleSelector';
 import ScopeSelector from '../components/ScopeSelector';
 import MileageTrendChart from '../components/MileageTrendChart';
 import LastTwoMonthsCard from '../components/LastTwoMonthsCard';
@@ -38,6 +39,8 @@ export default function DashboardScreen({ navigation }: DashboardTabScreenProps)
             <Text style={styles.addButtonText}>+ Log refuel</Text>
           </Pressable>
         </View>
+
+        <VehicleSelector />
 
         <ScopeSelector months={distinctMonths} selected={selectedMonth} onChange={setSelectedMonth} />
 

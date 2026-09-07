@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { View, Text, TextInput, Pressable, StyleSheet, ScrollView } from 'react-native';
 import { colors, fonts, radii, spacing } from '../constants/theme';
+import { VEHICLE_TYPE_ICON } from '../constants/vehicles';
 import { todayLocalISODate } from '../utils/dateFormat';
 import { useFuelEntries } from '../context/FuelEntriesContext';
 import DateField from '../components/DateField';
@@ -34,8 +35,9 @@ function FormField({
 
 export default function AddEditEntryScreen({ route, navigation }: AddEditEntryScreenProps) {
   const entryId = route.params?.entryId;
-  const { getEntryById, addEntry, updateEntry } = useFuelEntries();
+  const { getEntryById, addEntry, updateEntry, vehicles, selectedVehicle } = useFuelEntries();
   const existing = entryId !== undefined ? getEntryById(entryId) : undefined;
+  const forVehicle = existing ? vehicles.find((v) => v.id === existing.vehicleId) : selectedVehicle;
 
   const [date, setDate] = useState(existing?.date ?? todayLocalISODate());
   const [odometerKm, setOdometerKm] = useState(existing ? String(existing.odometerKm) : '');
@@ -89,6 +91,11 @@ export default function AddEditEntryScreen({ route, navigation }: AddEditEntrySc
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
+      {forVehicle && (
+        <Text style={styles.vehicleBadge}>
+          {VEHICLE_TYPE_ICON[forVehicle.type]} Logging for {forVehicle.name}
+        </Text>
+      )}
       <DateField label="Date" value={date} onChange={setDate} />
       <FormField label="Odometer (km)" value={odometerKm} onChangeText={setOdometerKm} placeholder="e.g. 12450" />
       <FormField label="Liters" value={liters} onChangeText={setLiters} placeholder="e.g. 8.5" />
@@ -118,6 +125,12 @@ const styles = StyleSheet.create({
   },
   content: {
     padding: spacing.lg,
+  },
+  vehicleBadge: {
+    fontFamily: fonts.bodyMedium,
+    fontSize: 13,
+    color: colors.textMuted,
+    marginBottom: spacing.lg,
   },
   fieldContainer: {
     marginBottom: spacing.lg,

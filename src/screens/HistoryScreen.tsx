@@ -4,6 +4,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { colors, fonts, radii, spacing } from '../constants/theme';
 import { useFuelEntries } from '../context/FuelEntriesContext';
 import HistoryRow from '../components/HistoryRow';
+import VehicleSelector from '../components/VehicleSelector';
 import ConfirmDialog from '../components/ConfirmDialog';
 import type { HistoryTabScreenProps } from '../navigation/types';
 import type { EnrichedFuelEntry } from '../types/fuelEntry';
@@ -26,6 +27,9 @@ export default function HistoryScreen({ navigation }: HistoryTabScreenProps) {
         <Pressable style={styles.addButton} onPress={() => navigation.navigate('AddEditEntry')}>
           <Text style={styles.addButtonText}>+ Log refuel</Text>
         </Pressable>
+      </View>
+      <View style={styles.vehicleSelectorWrapper}>
+        <VehicleSelector />
       </View>
       <FlatList
         data={historyEntries}
@@ -69,6 +73,9 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     padding: spacing.lg,
+  },
+  vehicleSelectorWrapper: {
+    paddingHorizontal: spacing.lg,
   },
   title: {
     fontFamily: fonts.headingBold,

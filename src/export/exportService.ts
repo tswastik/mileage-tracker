@@ -44,10 +44,15 @@ export function buildEntriesCsv(entries: EnrichedFuelEntry[]): string {
   return [CSV_HEADERS.join(','), ...rows].join('\n');
 }
 
-export async function exportEntriesAsCsv(entries: EnrichedFuelEntry[]): Promise<void> {
+function slugify(name: string): string {
+  return name.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+}
+
+export async function exportEntriesAsCsv(entries: EnrichedFuelEntry[], vehicleName?: string): Promise<void> {
   assertFileSystemSupported();
   const csv = buildEntriesCsv(entries);
-  const file = new File(Paths.cache, `mileage-tracker-export-${Date.now()}.csv`);
+  const suffix = vehicleName ? `-${slugify(vehicleName)}` : '';
+  const file = new File(Paths.cache, `mileage-tracker-export${suffix}-${Date.now()}.csv`);
   file.write(csv);
 
   if (await Sharing.isAvailableAsync()) {

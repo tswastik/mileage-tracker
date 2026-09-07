@@ -2,18 +2,22 @@ import React, { useState } from 'react';
 import { View, Text, Pressable, StyleSheet, ScrollView, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { colors, fonts, radii, spacing } from '../constants/theme';
+import { VEHICLE_TYPE_ICON } from '../constants/vehicles';
 import { useFuelEntries } from '../context/FuelEntriesContext';
 import { exportEntriesAsCsv } from '../export/exportService';
 import { writeAndShareBackup, pickAndReadBackup } from '../backup/backupService';
 import ConfirmDialog from '../components/ConfirmDialog';
+import type { Vehicle } from '../types/vehicle';
+import type { RestorePayload } from '../types/fuelEntry';
 
 type BusyAction = 'csv' | 'backup' | 'restore' | null;
 
 export default function SettingsScreen() {
-  const { entries, historyEntries, importBackup } = useFuelEntries();
+  const { vehicles, entries, historyEntries, selectedVehicle, importBackup, deleteVehicle } = useFuelEntries();
   const [busy, setBusy] = useState<BusyAction>(null);
   const [error, setError] = useState<string | null>(null);
-  const [pendingImport, setPendingImport] = useState<{ count: number; run: () => Promise<void> } | null>(null);
+  const [pendingImport, setPendingImport] = useState<RestorePayload | null>(null);
+  const [pendingDeleteVehicle, setPendingDeleteVehicle] = useState<Vehicle | null>(null);
 
   const runAction = async (action: BusyAction, fn: () => Promise<void>) => {
     setError(null);
@@ -30,17 +34,22 @@ export default function SettingsScreen() {
   const handleRestore = () =>
     runAction('restore', async () => {
       const imported = await pickAndReadBackup();
-      setPendingImport({
-        count: imported.length,
-        run: () => importBackup(imported),
-      });
+      setPendingImport(imported);
     });
 
   const confirmRestore = () => {
     const pending = pendingImport;
     setPendingImport(null);
     if (pending) {
-      runAction('restore', pending.run);
+      runAction('restore', () => importBackup(pending));
+    }
+  };
+
+  const confirmDeleteVehicle = () => {
+    const vehicle = pendingDeleteVehicle;
+    setPendingDeleteVehicle(null);
+    if (vehicle) {
+      runAction(null, () => deleteVehicle(vehicle.id));
     }
   };
 
@@ -50,12 +59,37 @@ export default function SettingsScreen() {
         <Text style={styles.title}>Settings</Text>
 
         <View style={styles.card}>
+          <Text style={styles.sectionTitle}>Vehicles</Text>
+          <Text style={styles.sectionSubtitle}>A vehicle can only be deleted once it has no logged entries.</Text>
+          {vehicles.map((vehicle) => {
+            const count = entries.filter((e) => e.vehicleId === vehicle.id).length;
+            return (
+              <View key={vehicle.id} style={styles.vehicleRow}>
+                <Text style={styles.vehicleLabel}>
+                  {VEHICLE_TYPE_ICON[vehicle.type]} {vehicle.name}
+                </Text>
+                {count > 0 ? (
+                  <Text style={styles.vehicleCount}>{count} {count === 1 ? 'entry' : 'entries'}</Text>
+                ) : (
+                  <Pressable onPress={() => setPendingDeleteVehicle(vehicle)}>
+                    <Text style={styles.deleteLink}>Delete</Text>
+                  </Pressable>
+                )}
+              </View>
+            );
+          })}
+        </View>
+
+        <View style={styles.card}>
           <Text style={styles.sectionTitle}>Export</Text>
-          <Text style={styles.sectionSubtitle}>Download your fuel log as a spreadsheet.</Text>
+          <Text style={styles.sectionSubtitle}>
+            Download {selectedVehicle ? `${selectedVehicle.name}'s` : 'the current vehicle\'s'} fuel log as a
+            spreadsheet.
+          </Text>
           <ActionButton
             label="Export as CSV"
             busy={busy === 'csv'}
-            onPress={() => runAction('csv', () => exportEntriesAsCsv(historyEntries))}
+            onPress={() => runAction('csv', () => exportEntriesAsCsv(historyEntries, selectedVehicle?.name))}
           />
         </View>
 
@@ -63,12 +97,12 @@ export default function SettingsScreen() {
           <Text style={styles.sectionTitle}>Backup</Text>
           <Text style={styles.sectionSubtitle}>
             This app stores data only on this device. Back up regularly so you don't lose it on reinstall or a new
-            phone.
+            phone. Backup and restore cover every vehicle, not just the selected one.
           </Text>
           <ActionButton
             label="Backup data"
             busy={busy === 'backup'}
-            onPress={() => runAction('backup', () => writeAndShareBackup(entries))}
+            onPress={() => runAction('backup', () => writeAndShareBackup(vehicles, entries))}
           />
           <ActionButton label="Restore from backup" busy={busy === 'restore'} onPress={handleRestore} />
         </View>
@@ -78,6 +112,7 @@ export default function SettingsScreen() {
         <View style={styles.card}>
           <Text style={styles.sectionTitle}>About</Text>
           <Row label="App" value="Mileage Tracker" />
+          <Row label="Vehicles" value={String(vehicles.length)} />
           <Row label="Refuels logged" value={String(entries.length)} />
         </View>
 
@@ -86,12 +121,20 @@ export default function SettingsScreen() {
           title="Restore from backup?"
           message={
             pendingImport
-              ? `This replaces all ${entries.length} entries currently on this device with ${pendingImport.count} entries from the backup. This can't be undone.`
+              ? `This replaces all ${vehicles.length} vehicle(s) and ${entries.length} entries currently on this device with ${pendingImport.vehicles.length} vehicle(s) and ${pendingImport.entries.length} entries from the backup. This can't be undone.`
               : ''
           }
           confirmLabel="Restore"
           onCancel={() => setPendingImport(null)}
           onConfirm={confirmRestore}
+        />
+
+        <ConfirmDialog
+          visible={pendingDeleteVehicle !== null}
+          title="Delete this vehicle?"
+          message={pendingDeleteVehicle ? `This removes "${pendingDeleteVehicle.name}" from your vehicle list.` : ''}
+          onCancel={() => setPendingDeleteVehicle(null)}
+          onConfirm={confirmDeleteVehicle}
         />
       </ScrollView>
     </SafeAreaView>
@@ -190,5 +233,28 @@ const styles = StyleSheet.create({
     fontFamily: fonts.bodyMedium,
     fontSize: 13,
     color: colors.textPrimary,
+  },
+  vehicleRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: spacing.sm,
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
+  },
+  vehicleLabel: {
+    fontFamily: fonts.body,
+    fontSize: 14,
+    color: colors.textPrimary,
+  },
+  vehicleCount: {
+    fontFamily: fonts.body,
+    fontSize: 12,
+    color: colors.textMuted,
+  },
+  deleteLink: {
+    fontFamily: fonts.bodyMedium,
+    fontSize: 12,
+    color: colors.terracotta,
   },
 });

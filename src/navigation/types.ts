@@ -10,6 +10,7 @@ export type RootStackParamList = {
 export type MainTabParamList = {
   DashboardTab: undefined;
   HistoryTab: undefined;
+  CalculatorTab: undefined;
   SettingsTab: undefined;
 };
 
@@ -23,5 +24,6 @@ export type MainTabScreenProps<T extends keyof MainTabParamList> = CompositeScre
 
 export type DashboardTabScreenProps = MainTabScreenProps<'DashboardTab'>;
 export type HistoryTabScreenProps = MainTabScreenProps<'HistoryTab'>;
+export type CalculatorTabScreenProps = MainTabScreenProps<'CalculatorTab'>;
 export type SettingsTabScreenProps = MainTabScreenProps<'SettingsTab'>;
 export type AddEditEntryScreenProps = RootStackScreenProps<'AddEditEntry'>;

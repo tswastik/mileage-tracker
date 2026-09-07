@@ -1,8 +1,9 @@
 import { getDatabase } from './database';
-import type { FuelEntry, FuelEntryInput } from '../types/fuelEntry';
+import type { FuelEntry, FuelEntryRecord } from '../types/fuelEntry';
 
 interface FuelEntryRow {
   id: number;
+  vehicle_id: number;
   date: string;
   odometer_km: number;
   liters: number;
@@ -15,6 +16,7 @@ interface FuelEntryRow {
 function rowToFuelEntry(row: FuelEntryRow): FuelEntry {
   return {
     id: row.id,
+    vehicleId: row.vehicle_id,
     date: row.date,
     odometerKm: row.odometer_km,
     liters: row.liters,
@@ -42,12 +44,13 @@ export async function getById(id: number): Promise<FuelEntry | null> {
   return row ? rowToFuelEntry(row) : null;
 }
 
-export async function create(input: FuelEntryInput): Promise<FuelEntry> {
+export async function create(input: FuelEntryRecord): Promise<FuelEntry> {
   const db = await getDatabase();
   const createdAt = new Date().toISOString();
   const result = await db.runAsync(
-    `INSERT INTO fuel_entries (date, odometer_km, liters, total_price_inr, station, notes, created_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?)`,
+    `INSERT INTO fuel_entries (vehicle_id, date, odometer_km, liters, total_price_inr, station, notes, created_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+    input.vehicleId,
     input.date,
     input.odometerKm,
     input.liters,
@@ -63,12 +66,13 @@ export async function create(input: FuelEntryInput): Promise<FuelEntry> {
   };
 }
 
-export async function update(id: number, input: FuelEntryInput): Promise<void> {
+export async function update(id: number, input: FuelEntryRecord): Promise<void> {
   const db = await getDatabase();
   await db.runAsync(
     `UPDATE fuel_entries
-     SET date = ?, odometer_km = ?, liters = ?, total_price_inr = ?, station = ?, notes = ?
+     SET vehicle_id = ?, date = ?, odometer_km = ?, liters = ?, total_price_inr = ?, station = ?, notes = ?
      WHERE id = ?`,
+    input.vehicleId,
     input.date,
     input.odometerKm,
     input.liters,

@@ -5,6 +5,7 @@ import type { MainTabParamList } from './types';
 import { colors } from '../constants/theme';
 import DashboardScreen from '../screens/DashboardScreen';
 import HistoryScreen from '../screens/HistoryScreen';
+import FuelCostCalculatorScreen from '../screens/FuelCostCalculatorScreen';
 import SettingsScreen from '../screens/SettingsScreen';
 
 const Tab = createBottomTabNavigator<MainTabParamList>();
@@ -32,6 +33,11 @@ export default function MainTabs() {
         name="HistoryTab"
         component={HistoryScreen}
         options={{ title: 'History', tabBarIcon: () => <TabIcon emoji="📋" /> }}
+      />
+      <Tab.Screen
+        name="CalculatorTab"
+        component={FuelCostCalculatorScreen}
+        options={{ title: 'Calculator', tabBarIcon: () => <TabIcon emoji="🧮" /> }}
       />
       <Tab.Screen
         name="SettingsTab"
