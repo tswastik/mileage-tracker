@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { View, Text, Pressable, StyleSheet, Platform } from 'react-native';
-import DateTimePicker, { type DateTimePickerEvent } from '@react-native-community/datetimepicker';
+import DateTimePicker, { type DateTimePickerChangeEvent } from '@react-native-community/datetimepicker';
 import { colors, fonts, radii, spacing } from '../constants/theme';
 import { formatDisplayDate, parseDateOnly, toDateOnlyString } from '../utils/dateFormat';
 
@@ -13,11 +13,13 @@ interface Props {
 export default function DateField({ label, value, onChange }: Props) {
   const [show, setShow] = useState(false);
 
-  const handleChange = (event: DateTimePickerEvent, selectedDate?: Date) => {
+  const handleValueChange = (event: DateTimePickerChangeEvent, selectedDate: Date) => {
     setShow(false);
-    if (event.type === 'set' && selectedDate) {
-      onChange(toDateOnlyString(selectedDate));
-    }
+    onChange(toDateOnlyString(selectedDate));
+  };
+
+  const handleDismiss = () => {
+    setShow(false);
   };
 
   return (
@@ -31,7 +33,8 @@ export default function DateField({ label, value, onChange }: Props) {
           value={parseDateOnly(value)}
           mode="date"
           display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-          onChange={handleChange}
+          onValueChange={handleValueChange}
+          onDismiss={handleDismiss}
         />
       )}
     </View>
