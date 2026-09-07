@@ -7,6 +7,7 @@ import { formatInr, formatNum } from '../utils/format';
 import { useFuelEntries } from '../context/FuelEntriesContext';
 import KpiTile from '../components/KpiTile';
 import VehicleSelector from '../components/VehicleSelector';
+import EmptyVehiclesPrompt from '../components/EmptyVehiclesPrompt';
 import ScopeSelector from '../components/ScopeSelector';
 import MileageTrendChart from '../components/MileageTrendChart';
 import LastTwoMonthsCard from '../components/LastTwoMonthsCard';
@@ -15,9 +16,20 @@ import FuelPriceTrendChart from '../components/FuelPriceTrendChart';
 import type { DashboardTabScreenProps } from '../navigation/types';
 
 export default function DashboardScreen({ navigation }: DashboardTabScreenProps) {
-  const { distinctMonths, getSummary, monthlyBreakdown } = useFuelEntries();
+  const { vehicles, distinctMonths, getSummary, monthlyBreakdown } = useFuelEntries();
   const [selectedMonth, setSelectedMonth] = useState<string | null>(null);
   const summary = useMemo(() => getSummary(selectedMonth), [getSummary, selectedMonth]);
+
+  if (vehicles.length === 0) {
+    return (
+      <SafeAreaView style={styles.safeArea} edges={['top']}>
+        <View style={styles.content}>
+          <Text style={styles.title}>Dashboard</Text>
+          <EmptyVehiclesPrompt />
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   const tiles = [
     { label: 'Avg mileage', value: formatNum(summary.avgMileageKmpl, ' km/L'), icon: '📈', accentColor: kpiColors.mileage },

@@ -5,12 +5,13 @@ import { colors, fonts, radii, spacing } from '../constants/theme';
 import { useFuelEntries } from '../context/FuelEntriesContext';
 import HistoryRow from '../components/HistoryRow';
 import VehicleSelector from '../components/VehicleSelector';
+import EmptyVehiclesPrompt from '../components/EmptyVehiclesPrompt';
 import ConfirmDialog from '../components/ConfirmDialog';
 import type { HistoryTabScreenProps } from '../navigation/types';
 import type { EnrichedFuelEntry } from '../types/fuelEntry';
 
 export default function HistoryScreen({ navigation }: HistoryTabScreenProps) {
-  const { historyEntries, deleteEntry } = useFuelEntries();
+  const { vehicles, historyEntries, deleteEntry } = useFuelEntries();
   const [pendingDelete, setPendingDelete] = useState<EnrichedFuelEntry | null>(null);
 
   const confirmDelete = () => {
@@ -19,6 +20,17 @@ export default function HistoryScreen({ navigation }: HistoryTabScreenProps) {
     }
     setPendingDelete(null);
   };
+
+  if (vehicles.length === 0) {
+    return (
+      <SafeAreaView style={styles.container} edges={['top']}>
+        <View style={styles.content}>
+          <Text style={styles.title}>History</Text>
+          <EmptyVehiclesPrompt />
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
@@ -67,6 +79,9 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: colors.background,
+  },
+  content: {
+    padding: spacing.lg,
   },
   header: {
     flexDirection: 'row',
