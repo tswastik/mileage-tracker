@@ -12,6 +12,7 @@ import {
 } from '@expo-google-fonts/ibm-plex-sans';
 import AppNavigator from './src/navigation/AppNavigator';
 import { FuelEntriesProvider } from './src/context/FuelEntriesContext';
+import { TripsProvider } from './src/context/TripsContext';
 import { colors } from './src/constants/theme';
 
 SplashScreen.preventAutoHideAsync().catch(() => {});
@@ -65,10 +66,12 @@ export default function App() {
   return (
     <SafeAreaProvider>
       <FuelEntriesProvider>
-        <NavigationContainer>
-          <AppNavigator />
-        </NavigationContainer>
-        <StatusBar style="dark" />
+        <TripsProvider>
+          <NavigationContainer>
+            <AppNavigator />
+          </NavigationContainer>
+          <StatusBar style="dark" />
+        </TripsProvider>
       </FuelEntriesProvider>
     </SafeAreaProvider>
   );

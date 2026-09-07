@@ -25,6 +25,28 @@ CREATE TABLE IF NOT EXISTS app_settings (
   key TEXT PRIMARY KEY NOT NULL,
   value TEXT NOT NULL
 );
+
+CREATE TABLE IF NOT EXISTS trips (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  vehicle_id INTEGER NOT NULL,
+  fuel_type TEXT NOT NULL DEFAULT 'petrol',
+  status TEXT NOT NULL DEFAULT 'active',
+  created_at TEXT NOT NULL,
+  closed_at TEXT
+);
+
+CREATE TABLE IF NOT EXISTS trip_checkpoints (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  trip_id INTEGER NOT NULL,
+  kind TEXT NOT NULL,
+  date_time TEXT NOT NULL,
+  odometer_km REAL NOT NULL,
+  location TEXT NOT NULL DEFAULT '',
+  liters REAL,
+  cost_inr REAL,
+  created_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_trip_checkpoints_trip ON trip_checkpoints (trip_id, date_time);
 `;
 
 interface TableInfoRow {

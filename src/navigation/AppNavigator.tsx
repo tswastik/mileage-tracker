@@ -4,6 +4,7 @@ import type { RootStackParamList } from './types';
 import { colors, fonts } from '../constants/theme';
 import MainTabs from './MainTabs';
 import AddEditEntryScreen from '../screens/AddEditEntryScreen';
+import TripDetailScreen from '../screens/TripDetailScreen';
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
@@ -21,6 +22,16 @@ export default function AppNavigator() {
           headerTitleStyle: { fontFamily: fonts.bodySemiBold, color: colors.textPrimary },
           headerTintColor: colors.forestGreen,
         })}
+      />
+      <Stack.Screen
+        name="TripDetail"
+        component={TripDetailScreen}
+        options={{
+          title: 'Trip',
+          headerStyle: { backgroundColor: colors.surface },
+          headerTitleStyle: { fontFamily: fonts.bodySemiBold, color: colors.textPrimary },
+          headerTintColor: colors.forestGreen,
+        }}
       />
     </Stack.Navigator>
   );

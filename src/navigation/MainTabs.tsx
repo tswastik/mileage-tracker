@@ -5,6 +5,7 @@ import type { MainTabParamList } from './types';
 import { colors } from '../constants/theme';
 import DashboardScreen from '../screens/DashboardScreen';
 import HistoryScreen from '../screens/HistoryScreen';
+import TripsScreen from '../screens/TripsScreen';
 import FuelCostCalculatorScreen from '../screens/FuelCostCalculatorScreen';
 import SettingsScreen from '../screens/SettingsScreen';
 
@@ -33,6 +34,11 @@ export default function MainTabs() {
         name="HistoryTab"
         component={HistoryScreen}
         options={{ title: 'History', tabBarIcon: () => <TabIcon emoji="📋" /> }}
+      />
+      <Tab.Screen
+        name="TripsTab"
+        component={TripsScreen}
+        options={{ title: 'Trips', tabBarIcon: () => <TabIcon emoji="🧳" /> }}
       />
       <Tab.Screen
         name="CalculatorTab"

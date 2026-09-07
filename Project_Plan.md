@@ -68,6 +68,39 @@ Update: `expo-sqlite`'s web target actually works — it just needs `metro.confi
 - [x] Phase 5 — Export, backup, settings, polish
 - [x] Phase 6 — Multiple vehicles
 - [x] Phase 7 — Fuel cost calculator
+- [x] Phase 8 — Fuel Trip Summary
+
+## Phase 8: Fuel Trip Summary ("Trips")
+
+A trip is a bounded, real-time-recorded journey: a start odometer reading, any number of waypoints along the way (location + odometer, fuel optional), and an end (odometer + a mandatory fuel top-up back to the starting level, per the classic trip-mileage measurement method). Once ended, it's a closed trip log you can look back at later with its own summary.
+
+**Key decision — fully separate from the regular fuel log.** Discussed and confirmed with the user: trip fuel purchases do *not* also become regular `fuel_entries` rows. Trips get their own two tables (`trips`, `trip_checkpoints`) and their own lightweight validation, with zero coupling to `FuelEntriesContext`/`odometerValidation.ts`/`mileageEngine.ts`. Trade-off accepted explicitly: a vehicle's regular Dashboard/History won't reflect fuel bought mid-trip unless it's also logged there separately. In exchange, this is the simplest, lowest-risk design — no risk of destabilizing the already-built and tested regular tracking code.
+
+**Data model**:
+- `trips`: `id, vehicle_id, fuel_type ('petrol'|'diesel'), status ('active'|'closed'), created_at, closed_at`.
+- `trip_checkpoints`: `id, trip_id, kind ('start'|'waypoint'|'end'), date_time, odometer_km, location, liters (nullable), cost_inr (nullable), created_at`. One shape for start/waypoint/end — they differ only by `kind` and by which optional fields are populated. Both tables are purely additive (`CREATE TABLE IF NOT EXISTS`), no migration/backfill needed since nothing existing is affected.
+
+**Formulas** (computed from a trip's checkpoint list, using whichever checkpoint is most recent — so an *active* trip can show live "distance so far" before it's even closed, using the exact same formula a closed trip uses with its `end` checkpoint):
+- Total Distance = latest checkpoint's odometer − start odometer
+- Total Fuel = sum of every checkpoint's liters
+- Total Cost = sum of every checkpoint's cost
+- Trip Mileage (km/L) = Total Distance ÷ Total Fuel
+- Cost/km = Total Cost ÷ Total Distance
+- Price/L = Total Cost ÷ Total Fuel
+
+**Validation** (in a new, trip-scoped module — not reusing `odometerValidation.ts`, which is tied to the vehicle-wide `FuelEntry` type): checkpoints are append-only and recorded live, so each new checkpoint only needs to check against the trip's own *previous* checkpoint (no "next neighbor" case, unlike the regular fuel log which supports historical backfill) — odometer must be `>=` the previous checkpoint's. Liters/cost travel together (both or neither), both `> 0` when present. One active trip per vehicle at a time.
+
+**Scope cuts for v1** (deliberate, not oversights):
+- No editing a checkpoint once added — append-only, matching "recording as you go" rather than the regular fuel log's backfill-friendly design.
+- A trip can only be canceled/deleted while it has just its start checkpoint (nothing else added yet) — same "can't destroy real recorded data" principle already used for vehicle deletion. Past that point, finish the trip by ending it.
+- Ending a trip requires fuel data (liters + cost) — matches the spec's "top up to starting level" step, and without it `Total Fuel` would be 0 and the whole point of a trip-mileage feature would be moot.
+- A closed trip's checkpoints never appear in the regular Dashboard/History (see the separation decision above).
+
+**New pieces needed beyond the data/logic layer**: the app only has a *date* picker (`DateField`) today; trips need date **and time**. Building a `DateTimeField` (chains a date picker then a time picker on Android, since its native picker has no combined mode; a single step on iOS) is part of this phase.
+
+**Navigation**: a 5th bottom tab, "Trips" 🧳, between History and Calculator — `Dashboard, History, Trips, Calculator, Settings`. A trip's detail view is a pushed stack screen (like Add/Edit Entry), shared between an active trip (editable: add waypoint / end trip) and a closed one (read-only).
+
+**Phase 8 verification**: confirmed end-to-end via `expo start --web` against the exact worked example in the "Mileage Calculation Formula" section above's sibling — the spec's own trip example (Start 10,200 km, a mid-trip stop at 10,450 km with 5 L/₹500, End 10,700 km with 20 L/₹2,000): Distance 500 km, Trip Mileage 20 km/L, Total Fuel 25 L, Total Cost ₹2,500, Cost/km ₹5, Avg ₹/L ₹100 — every figure matched the spec precisely. Also confirmed: the odometer-sequencing check rejects a decreasing reading at the "end" step with a clear message naming the conflicting stop; canceling a trip with only its start checkpoint removes it cleanly and leaves other trips untouched; a closed trip cannot be canceled or edited; and — the core architectural guarantee of this phase — the regular Dashboard/History for the same vehicle showed zero refuels and ₹0 throughout, confirming trips truly don't touch the regular fuel-tracking data at all.
 
 Phase 6/7 verification: confirmed end-to-end via `expo start --web` — the migration correctly created a default "My Vehicle" on an existing (pre-vehicle-support) database with no data loss; adding a second vehicle ("Activa", two-wheeler) and logging an entry with a *lower* odometer than the first vehicle's was accepted without triggering the odometer-sequencing rejection, proving entries are properly scoped per vehicle end to end (History, KPIs, and charts all confirmed isolated per vehicle); deleting an empty vehicle worked and correctly fell back to selecting another vehicle; deleting a vehicle with entries is correctly blocked (no delete control shown). The Fuel Cost Calculator was checked against the exact worked example added above (150 km ÷ 40 km/L → 3.75 L → ₹375 at ₹100/L) and matched precisely. Backup/restore's new v2 format (with the v1-backward-compatibility path) could not be exercised on web, same `expo-file-system`-has-no-web-implementation limitation as Phase 5 — still needs an on-device check, and this time it's particularly important since it's a real schema migration running against this device's actual previously-logged data.
 

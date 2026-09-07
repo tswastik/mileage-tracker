@@ -5,11 +5,13 @@ import type { BottomTabScreenProps } from '@react-navigation/bottom-tabs';
 export type RootStackParamList = {
   MainTabs: undefined;
   AddEditEntry: { entryId?: number } | undefined;
+  TripDetail: { tripId: number };
 };
 
 export type MainTabParamList = {
   DashboardTab: undefined;
   HistoryTab: undefined;
+  TripsTab: undefined;
   CalculatorTab: undefined;
   SettingsTab: undefined;
 };
@@ -24,6 +26,8 @@ export type MainTabScreenProps<T extends keyof MainTabParamList> = CompositeScre
 
 export type DashboardTabScreenProps = MainTabScreenProps<'DashboardTab'>;
 export type HistoryTabScreenProps = MainTabScreenProps<'HistoryTab'>;
+export type TripsTabScreenProps = MainTabScreenProps<'TripsTab'>;
 export type CalculatorTabScreenProps = MainTabScreenProps<'CalculatorTab'>;
 export type SettingsTabScreenProps = MainTabScreenProps<'SettingsTab'>;
 export type AddEditEntryScreenProps = RootStackScreenProps<'AddEditEntry'>;
+export type TripDetailScreenProps = RootStackScreenProps<'TripDetail'>;

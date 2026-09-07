@@ -23,3 +23,23 @@ export function toDateOnlyString(date: Date): string {
 export function parseDateOnly(isoDate: string): Date {
   return parseISO(isoDate);
 }
+
+// Full ISO datetime strings (with an explicit offset/Z) don't have the
+// date-only UTC-vs-local ambiguity above — parseISO/toISOString round-trip
+// them correctly regardless of timezone, so these need no special handling.
+
+export function nowISODateTime(): string {
+  return new Date().toISOString();
+}
+
+export function toISODateTimeString(date: Date): string {
+  return date.toISOString();
+}
+
+export function parseDateTime(isoDateTime: string): Date {
+  return parseISO(isoDateTime);
+}
+
+export function formatDisplayDateTime(isoDateTime: string): string {
+  return format(parseISO(isoDateTime), 'dd MMM yyyy, h:mm a');
+}
