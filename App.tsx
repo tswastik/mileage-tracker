@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
+import { View, Image, Text, StyleSheet } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { NavigationContainer } from '@react-navigation/native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
@@ -11,8 +12,25 @@ import {
 } from '@expo-google-fonts/ibm-plex-sans';
 import AppNavigator from './src/navigation/AppNavigator';
 import { FuelEntriesProvider } from './src/context/FuelEntriesContext';
+import { colors } from './src/constants/theme';
 
 SplashScreen.preventAutoHideAsync().catch(() => {});
+
+// Shown while fonts/DB are loading, in place of the app's real screens.
+// Custom fonts aren't guaranteed loaded yet at this point, so this uses the
+// system default font rather than `fonts.*` from the theme. This is also
+// the only branded loading screen visible when testing via Expo Go, since
+// Expo Go always shows its own native icon/splash and ignores app.json's
+// icon/splash config (that only applies to a real native build).
+function LoadingScreen() {
+  return (
+    <View style={styles.loadingContainer}>
+      {/* eslint-disable-next-line @typescript-eslint/no-require-imports */}
+      <Image source={require('./assets/icon.png')} style={styles.loadingIcon} resizeMode="contain" />
+      <Text style={styles.loadingTitle}>Mileage Tracker</Text>
+    </View>
+  );
+}
 
 export default function App() {
   const [fontsLoaded] = useFonts({
@@ -38,7 +56,7 @@ export default function App() {
   }, [fontsLoaded, dbReady]);
 
   if (!fontsLoaded || !dbReady) {
-    return null;
+    return <LoadingScreen />;
   }
 
   return (
@@ -52,3 +70,23 @@ export default function App() {
     </SafeAreaProvider>
   );
 }
+
+const styles = StyleSheet.create({
+  loadingContainer: {
+    flex: 1,
+    backgroundColor: colors.background,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  loadingIcon: {
+    width: 120,
+    height: 120,
+    borderRadius: 24,
+    marginBottom: 16,
+  },
+  loadingTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: colors.textPrimary,
+  },
+});
