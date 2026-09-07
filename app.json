@@ -33,6 +33,12 @@
           "backgroundColor": "#F9F8F6"
         }
       ]
-    ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "e8c3f0a0-d28a-4f40-b8b0-86b4e8bda483"
+      }
+    },
+    "owner": "tswastik"
   }
 }
